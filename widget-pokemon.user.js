@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         Widget Pokémon
 // @namespace    https://github.com/ulgrude
-// @version      1.3.0
+// @version      1.3.1
 // @description  Un Pokémon seedé en commun, capturable aux Poké/Super/Hyper Balls, sur les pages de ton choix.
 // @author       Ulgrude
 // @updateURL    https://raw.githubusercontent.com/ulgrude/widget-pokemon/main/widget-pokemon.user.js
 // @downloadURL  https://raw.githubusercontent.com/ulgrude/widget-pokemon/main/widget-pokemon.user.js
 // @match        *://*/*
-// @match        chrome://newtab/*
+// @match        https://golb.fr/blog/poke-widget
 // @connect      pokeapi.co
 // @connect      raw.githubusercontent.com
 // @run-at       document-idle
@@ -29,7 +29,7 @@
      1. Réglages fixes (gameplay) — tout ce qui n'est pas seed/position/URLs
      ===================================================================== */
   const CFG = {
-    DEFAULT_SEED: 'newtab',
+    DEFAULT_SEED: 'youtube.com/@golbfr',
     SLOT_MS: 30 * 60 * 1000, // un nouveau Pokémon toutes les 30 min
     BALL_MS: 60 * 60 * 1000, // une Poké Ball par heure
     MAX_POKEMON_ID: 1025,
@@ -61,7 +61,7 @@
   };
 
   const DEFAULT_URLS = [
-    'chrome://newtab/*',
+    'https://golb.fr/blog/poke-widget',
     'https://discord.com/channels/*',
   ];
 
@@ -911,22 +911,122 @@
   }
 
   /* ---------------------------- Export / Import --------------------------- */
-  function exportProgress() {
-    const payload = {
-      app: 'poke-widget', version: 1,
-      exportedAt: new Date().toISOString(),
-      state, config,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pokedex-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+/* ---------------------------- Export / Import (.pokesave) --------------------------- */
+
+// Constantes d'obfuscation / chiffrement (identiques à SaveObfuscator.cs)
+const SAVE_MAGIC = new Uint8Array([0x50, 0x4B, 0x57, 0x31]); // "PKW1"
+const NONCE_SIZE = 12;
+const TAG_SIZE = 16;
+const HEADER_SIZE = 4 + NONCE_SIZE + TAG_SIZE;
+const KEY_STRING = "poke-widget/save/v1/ulgrude:7f3a9c1e";
+
+async function getObfuscationKey() {
+  const enc = new TextEncoder();
+  const keyBytes = await crypto.subtle.digest('SHA-256', enc.encode(KEY_STRING));
+  return crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+// Chiffrement : JSON → GZip → AES-GCM (Format: "PKW1" | Nonce 12B | Tag 16B | Cipher)
+async function protectSave(jsonString) {
+  const enc = new TextEncoder();
+  const plainBytes = enc.encode(jsonString);
+
+  // 1. Compression GZip avec CompressionStream
+  const cs = new CompressionStream('gzip');
+  const writer = cs.writable.getWriter();
+  writer.write(plainBytes);
+  writer.close();
+  const compressedBuffer = await new Response(cs.readable).arrayBuffer();
+  const compressedBytes = new Uint8Array(compressedBuffer);
+
+  // 2. Chiffrement AES-GCM (tag 128-bit = 16 octets)
+  const key = await getObfuscationKey();
+  const nonce = crypto.getRandomValues(new Uint8Array(NONCE_SIZE));
+  
+  const encryptedBuffer = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: nonce, tagLength: 128, additionalData: SAVE_MAGIC },
+    key,
+    compressedBytes
+  );
+  
+  // En WebCrypto, le Tag (16B) est automatiquement concaténé à la fin du ciphertext
+  const encryptedBytes = new Uint8Array(encryptedBuffer);
+  const cipherLength = encryptedBytes.length - TAG_SIZE;
+  const cipher = encryptedBytes.subarray(0, cipherLength);
+  const tag = encryptedBytes.subarray(cipherLength);
+
+  // 3. Construction du header "PKW1" | Nonce | Tag | Cipher
+  const output = new Uint8Array(HEADER_SIZE + cipherLength);
+  output.set(SAVE_MAGIC, 0);
+  output.set(nonce, 4);
+  output.set(tag, 4 + NONCE_SIZE);
+  output.set(cipher, HEADER_SIZE);
+
+  return output;
+}
+
+// Déchiffrement
+async function unprotectSave(dataBytes) {
+  if (dataBytes.length < HEADER_SIZE) throw new Error("Fichier de sauvegarde corrompu ou incomplet");
+  
+  for (let i = 0; i < SAVE_MAGIC.length; i++) {
+    if (dataBytes[i] !== SAVE_MAGIC[i]) throw new Error("Fichier de sauvegarde non reconnu (.pokesave attendu)");
   }
+
+  const nonce = dataBytes.subarray(4, 4 + NONCE_SIZE);
+  const tag = dataBytes.subarray(4 + NONCE_SIZE, HEADER_SIZE);
+  const cipher = dataBytes.subarray(HEADER_SIZE);
+
+  // Reconstituer le buffer attendu par WebCrypto (Ciphertext + Tag)
+  const ciphertextWithTag = new Uint8Array(cipher.length + TAG_SIZE);
+  ciphertextWithTag.set(cipher, 0);
+  ciphertextWithTag.set(tag, cipher.length);
+
+  const key = await getObfuscationKey();
+  let decryptedBuffer;
+  try {
+    decryptedBuffer = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: nonce, tagLength: 128, additionalData: SAVE_MAGIC },
+      key,
+      ciphertextWithTag
+    );
+  } catch (e) {
+    throw new Error("Sauvegarde modifiée ou corrompue");
+  }
+
+  // Décompression GZip
+  const ds = new DecompressionStream('gzip');
+  const writer = ds.writable.getWriter();
+  writer.write(decryptedBuffer);
+  writer.close();
+  
+  const decompressedBuffer = await new Response(ds.readable).arrayBuffer();
+  return new TextDecoder().decode(decompressedBuffer);
+}
+
+// Export au format .pokesave
+async function exportProgress() {
+  const payload = {
+    app: 'poke-widget',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    state,
+    config,
+  };
+  
+  const jsonString = JSON.stringify(payload);
+  const protectedBytes = await protectSave(jsonString);
+  
+  const blob = new Blob([protectedBytes], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pokedex-${new Date().toISOString().slice(0, 10)}.pokesave`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
 
   // On ne fait jamais confiance au fichier importé : tout est borné/validé.
   function sanitizeState(raw) {
@@ -1007,17 +1107,18 @@
         <span>Pages où le widget apparaît</span>
         <div id="pkUrlList"></div>
         <button type="button" class="pk-addurl" id="pkAddUrl">+ Ajouter une page</button>
-        <small class="pk-hint">Utilise * comme joker, ex. https://discord.com/channels/*. Note : chrome://newtab ne fonctionne en général que si c'est l'adresse réelle de ta page de nouvel onglet (Chrome bloque les extensions sur sa propre page interne).</small>
+        <small class="pk-hint">Utilise * comme joker, ex. https://discord.com/channels/*.</small>
       </div>
 
       <div class="pk-field">
         <span>Sauvegarde de la progression</span>
         <div class="pk-row">
-          <button type="button" class="pk-btn" id="pkExport">Exporter (.json)</button>
+          <button type="button" class="pk-btn" id="pkExport">Exporter (.pokesave)</button>
           <button type="button" class="pk-btn" id="pkImport">Importer…</button>
-          <input type="file" id="pkImportFile" accept="application/json,.json" hidden>
+          <!-- Accepter UNIQUEMENT l'extension .pokesave -->
+          <input type="file" id="pkImportFile" accept=".pokesave" hidden>
         </div>
-        <small class="pk-hint" id="pkBackupMsg">Le fichier contient tes balls, ton Pokédex et tes réglages (seed, position, pages). Garde-le de côté avant de vider les données du navigateur ou de réinstaller l'extension.</small>
+        <small class="pk-hint" id="pkBackupMsg">Le fichier chiffré .pokesave contient tes balls, ton Pokédex et tes réglages.</small>
       </div>
 
       <div class="pk-field">
@@ -1025,7 +1126,7 @@
         <div class="pk-row">
           <button type="button" class="pk-btn" id="pkCheckUpdate">Vérifier maintenant</button>
         </div>
-        <small class="pk-hint" id="pkUpdateMsg">Version installée : ${INSTALLED_VERSION}. Compare avec la version du fichier sur ton GitHub, vérifiée automatiquement une fois par jour.</small>
+        <small class="pk-hint" id="pkUpdateMsg">Version installée : ${INSTALLED_VERSION}. Compare avec la version du fichier sur le GitHub, vérifiée automatiquement une fois par jour.</small>
       </div>
 
       <div class="pk-panel-actions">
@@ -1069,22 +1170,41 @@
     // -- Export / Import --
     const backupMsg = box.querySelector('#pkBackupMsg');
     const fileInput = box.querySelector('#pkImportFile');
-    box.querySelector('#pkExport').addEventListener('click', () => {
-      try { exportProgress(); backupMsg.textContent = 'Export lancé : vérifie ton dossier de téléchargements.'; }
-      catch (e) { backupMsg.textContent = 'Export impossible : ' + e.message; }
+    // Exporter
+    box.querySelector('#pkExport').addEventListener('click', async () => {
+      try {
+        await exportProgress();
+        backupMsg.textContent = 'Export (.pokesave) lancé : vérifie ton dossier de téléchargements.';
+      } catch (e) {
+        backupMsg.textContent = 'Export impossible : ' + e.message;
+      }
     });
+
+    // Importer
     box.querySelector('#pkImport').addEventListener('click', () => fileInput.click());
+
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files[0];
       fileInput.value = '';
       if (!file) return;
+
       try {
         if (file.size > 5 * 1024 * 1024) throw new Error('fichier trop volumineux');
-        const raw = JSON.parse(await file.text());
+        if (!file.name.endsWith('.pokesave')) throw new Error('seuls les fichiers .pokesave sont autorisés');
+
+        const arrayBuffer = await file.arrayBuffer();
+        const dataBytes = new Uint8Array(arrayBuffer);
+
+        // Déchiffrement et décompression
+        const unprotectedJson = await unprotectSave(dataBytes);
+        const raw = JSON.parse(unprotectedJson);
+
         if (!raw || typeof raw !== 'object') throw new Error('fichier non reconnu');
+
         const newState = sanitizeState(raw.state || raw);
         const newConfig = raw.config ? sanitizeConfig(raw.config) : null;
         const species = Object.keys(newState.dex).length;
+
         const ok = confirm(
           'Remplacer ta progression actuelle par celle du fichier ?\n\n' +
           `• ${species} espèce${species > 1 ? 's' : ''} dans le Pokédex\n` +
