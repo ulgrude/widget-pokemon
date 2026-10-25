@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(DotNetVersion)-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms> <!-- uniquement pour NotifyIcon -->
+    <RootNamespace>PokeWidget.Desktop</RootNamespace>
+    <AssemblyName>PokeWidget</AssemblyName>
+    <Version>1.4.0</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- Main personnalisé (App.xaml.cs) : Velopack doit s'exécuter avant tout le reste -->
+    <StartupObject>PokeWidget.Desktop.App</StartupObject>
+    <!-- WFO0003 : le DPI est géré par le manifeste (WPF), pas par ApplicationConfiguration (WinForms) -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- évite les ambiguïtés WPF / WinForms (Application, Button, Color...) -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+  <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PokeWidget.Core\PokeWidget.Core.csproj" />
+    <PackageReference Include="XamlAnimatedGif" Version="2.3.0" />
+    <!-- Version flottante : build/release.ps1 installe automatiquement le vpk de la MÊME version -->
+    <PackageReference Include="Velopack" Version="*" />
+  </ItemGroup>
+</Project>

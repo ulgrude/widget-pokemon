@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <!-- Version de .NET : à changer ici seulement (net8.0, net9.0, net10.0...) -->
+    <DotNetVersion>net9.0</DotNetVersion>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>

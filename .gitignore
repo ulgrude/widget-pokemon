@@ -1,0 +1,9 @@
+TODO.md
+
+# Artefacts de build (générés localement, non versionnés)
+pokewidget/**/bin/
+pokewidget/**/obj/
+pokewidget/publish/
+pokewidget/Releases/
+pokewidget/tools/
+pokewidget/.github/

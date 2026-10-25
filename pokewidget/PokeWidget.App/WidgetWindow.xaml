@@ -1,0 +1,141 @@
+<Window x:Class="PokeWidget.Desktop.WidgetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:PokeWidget.Desktop"
+        Title="Widget Pokémon"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
+        SizeToContent="WidthAndHeight" UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
+        FontFamily="Segoe UI" FontSize="13" Foreground="#F2F4F5">
+    <Window.Resources>
+        <RadialGradientBrush x:Key="StageNormal" Center="0.5,0.85" GradientOrigin="0.5,0.85" RadiusX="0.65" RadiusY="0.9">
+            <GradientStop Color="#24FFFFFF" Offset="0"/><GradientStop Color="#00FFFFFF" Offset="1"/>
+        </RadialGradientBrush>
+        <RadialGradientBrush x:Key="StageShiny" Center="0.5,0.85" GradientOrigin="0.5,0.85" RadiusX="0.65" RadiusY="0.9">
+            <GradientStop Color="#52FFCB05" Offset="0"/><GradientStop Color="#00FFCB05" Offset="1"/>
+        </RadialGradientBrush>
+
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Foreground" Value="#F2F4F5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="7,2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1FFFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="BallButton" TargetType="Button">
+            <Setter Property="Foreground" Value="#F2F4F5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="#12FFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
+                                CornerRadius="10" Padding="2,6,2,4">
+                            <ContentPresenter HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#29FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="#12FFFFFF"/>
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="FlatButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <!-- Widget complet -->
+        <Border x:Name="FullCard" Margin="12" Width="232" Padding="12,10,12,12" CornerRadius="14"
+                Background="#E0181C20" BorderBrush="#1FFFFFFF" BorderThickness="1">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Opacity="0.35" Color="Black"/>
+            </Border.Effect>
+            <StackPanel>
+                <Grid>
+                    <TextBlock Text="Poké-widget" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Style="{StaticResource IconButton}" Content="?" ToolTip="Comment jouer ?"
+                                AutomationProperties.Name="Comment jouer ?" Click="Help_Click"/>
+                        <Button Style="{StaticResource IconButton}" Content="📖" ToolTip="Pokédex"
+                                AutomationProperties.Name="Pokédex" Click="Dex_Click"/>
+                        <Button Style="{StaticResource IconButton}" Content="⚙️" ToolTip="Réglages"
+                                AutomationProperties.Name="Réglages" Click="Settings_Click"/>
+                        <Button Style="{StaticResource IconButton}" Content="−" ToolTip="Réduire"
+                                AutomationProperties.Name="Réduire" Click="Collapse_Click"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Height="128" Margin="0,6,0,2">
+                    <Border x:Name="StageBg" CornerRadius="10" Background="{StaticResource StageNormal}"/>
+                    <Image x:Name="Sprite" Visibility="Collapsed" Stretch="Uniform" StretchDirection="DownOnly"
+                           MaxWidth="112" MaxHeight="112" RenderTransformOrigin="0.5,1"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Image.RenderTransform><RotateTransform x:Name="ShakeRot"/></Image.RenderTransform>
+                    </Image>
+                    <TextBlock x:Name="Msg" VerticalAlignment="Bottom" TextAlignment="Center" FontWeight="SemiBold"
+                               TextWrapping="Wrap" Margin="0,0,0,2" IsHitTestVisible="False">
+                        <TextBlock.Effect><DropShadowEffect ShadowDepth="1" BlurRadius="4" Color="Black" Opacity="0.8"/></TextBlock.Effect>
+                    </TextBlock>
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,2,0,0">
+                    <local:BallIcon x:Name="NameBall" TopColor="#E53935" Width="18" Height="18" Margin="0,0,5,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+                    <TextBlock x:Name="NameText" Text="Chargement…" FontSize="15" FontWeight="Bold" TextAlignment="Center"/>
+                </StackPanel>
+                <TextBlock x:Name="MetaText" FontSize="12" Opacity="0.65" TextAlignment="Center" MinHeight="17"/>
+                <UniformGrid x:Name="BallsPanel" Rows="1" Margin="-3,8,-3,6"/>
+                <TextBlock x:Name="StatusText" FontSize="12" Opacity="0.75" TextAlignment="Center" TextWrapping="Wrap"/>
+                <TextBlock x:Name="UpdateLink" Visibility="Collapsed" FontSize="12" FontWeight="SemiBold" TextAlignment="Center" Margin="0,4,0,0">
+                    <Hyperlink Foreground="#FFCB05" Click="Update_Click"><Run x:Name="UpdateRun"/></Hyperlink>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Widget réduit : une simple Poké Ball -->
+        <Grid x:Name="MiniHost" Visibility="Collapsed" Margin="16" Width="42" Height="42"
+              RenderTransformOrigin="0.5,0.5" MouseEnter="Mini_Hover" MouseLeave="Mini_Hover">
+            <Grid.RenderTransform><RotateTransform x:Name="MiniRot"/></Grid.RenderTransform>
+            <Ellipse x:Name="MiniDisc" Fill="#E0181C20" Stroke="#2EFFFFFF" StrokeThickness="1"/>
+            <Button x:Name="MiniBtn" Style="{StaticResource FlatButton}" Click="Expand_Click">
+                <local:BallIcon Width="26" Height="26" TopColor="#E53935"/>
+            </Button>
+            <Ellipse x:Name="Badge" Width="11" Height="11" Fill="#FF5252" Stroke="#1E2327" StrokeThickness="2"
+                     HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-2,0"
+                     Visibility="Collapsed" IsHitTestVisible="False"/>
+        </Grid>
+    </Grid>
+</Window>

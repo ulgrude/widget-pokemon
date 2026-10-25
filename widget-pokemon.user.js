@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Widget Pokémon
 // @namespace    https://github.com/ulgrude
-// @version      1.3.1
+// @version      1.4.0
 // @description  Un Pokémon seedé en commun, capturable aux Poké/Super/Hyper Balls, sur les pages de ton choix.
 // @author       Ulgrude
 // @updateURL    https://raw.githubusercontent.com/ulgrude/widget-pokemon/main/widget-pokemon.user.js
@@ -44,7 +44,7 @@
   };
 
   const BALLS = {
-    poke:  { label: 'Poké Ball', bonus: 1 },
+    poke: { label: 'Poké Ball', bonus: 1 },
     super: { label: 'Super Ball', bonus: 1.5 },
     hyper: { label: 'Hyper Ball', bonus: 2 },
   };
@@ -54,9 +54,9 @@
   const SPRITES = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/';
 
   const POSITIONS = {
-    'top-left':     'Haut gauche',
-    'top-right':    'Haut droite',
-    'bottom-left':  'Bas gauche',
+    'top-left': 'Haut gauche',
+    'top-right': 'Haut droite',
+    'bottom-left': 'Bas gauche',
     'bottom-right': 'Bas droite',
   };
 
@@ -465,7 +465,9 @@
 .pk-shake .pk-sprite{animation:pk-shake .7s ease-in-out}
 @keyframes pk-shake{0%,100%{transform:rotate(0)}15%{transform:rotate(-14deg)}35%{transform:rotate(12deg)}55%{transform:rotate(-9deg)}75%{transform:rotate(6deg)}}
 .pk-msg{position:absolute;left:0;right:0;bottom:2px;min-height:1em;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.8)}
-.pk-name{font-size:15px;font-weight:700}
+.pk-name{font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px}
+.pk-name-ball{display:none;width:18px!important;height:18px!important;border-width:1.5px!important;flex-shrink:0}
+.pk-name-ball::after{width:4px;height:4px;border-width:1.5px}
 .pk-meta{opacity:.65;font-size:12px;min-height:1.35em}
 .pk-balls{display:flex;gap:6px;margin:8px 0 6px}
 .pk-ballbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 2px 4px;
@@ -578,7 +580,10 @@
           <img class="pk-sprite" alt="" hidden>
           <div class="pk-msg" aria-live="polite"></div>
         </div>
-        <div class="pk-name">Chargement…</div>
+        <div class="pk-name">
+          <span class="pk-ball pk-poke pk-name-ball"></span>
+          <span class="pk-name-text">Chargement…</span>
+        </div>
         <div class="pk-meta"></div>
         <div class="pk-balls">
           ${Object.entries(BALLS).map(([k, b]) => `
@@ -595,7 +600,7 @@
 
     const $ = (sel) => root.querySelector(sel);
     el = {
-      sprite: $('.pk-sprite'), msg: $('.pk-msg'), name: $('.pk-name'),
+      sprite: $('.pk-sprite'), msg: $('.pk-msg'), name: $('.pk-name-text'), nameBall: $('.pk-name-ball'),
       meta: $('.pk-meta'), status: $('.pk-status'), stage: $('.pk-stage'), mini: $('.pk-mini'), update: $('.pk-update'),
       btns: Object.fromEntries(Object.keys(BALLS).map((k) => [k, $(`[data-ball="${k}"]`)])),
     };
@@ -673,7 +678,7 @@
     el.mini.classList.toggle('pk-shine', shine);
     const label = shine ? 'Un Pokémon chromatique est là !'
       : isNew ? 'Un nouveau Pokémon est apparu'
-      : 'Afficher le widget Pokémon';
+        : 'Afficher le widget Pokémon';
     el.mini.title = label;
     el.mini.setAttribute('aria-label', label);
   }
@@ -688,10 +693,13 @@
       btn.disabled = busy || !current || isCaught() || state.balls[k] <= 0;
     }
     if (!current) {
+      if (el.nameBall) el.nameBall.style.display = 'none';
       el.name.textContent = lastFail ? 'PokéAPI injoignable' : 'Chargement…';
       el.meta.textContent = '';
       el.sprite.hidden = true;
     } else {
+      const inDex = !!(state.dex[current.id]);
+      if (el.nameBall) el.nameBall.style.display = inDex ? 'inline-block' : 'none';
       el.name.textContent = (current.shiny ? '✨ ' : '') + current.name;
       el.meta.textContent = `Taux de capture : ${current.rate}`;
       el.stage.classList.toggle('pk-caught', !!isCaught());
@@ -758,6 +766,67 @@
   // minuscules + sans accents, pour que "pikachu", "Évoli" et "evoli" matchent
   const norm = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
+  const GENERATIONS = [
+    [1, 151],
+    [152, 251],
+    [252, 386],
+    [387, 493],
+    [494, 649],
+    [650, 721],
+    [722, 809],
+    [810, 905],
+    [906, 1025],
+  ];
+
+  function matchesRange(id, raw) {
+    const parts = raw.split('&').map((s) => s.trim()).filter(Boolean);
+    if (!parts.length) return false;
+    for (const part of parts) {
+      const m = part.match(/^(<=|>=|<|>)\s*(\d+)$/);
+      if (!m) return false;
+      const op = m[1];
+      const val = parseInt(m[2], 10);
+      if (op === '<' && !(id < val)) return false;
+      if (op === '<=' && !(id <= val)) return false;
+      if (op === '>' && !(id > val)) return false;
+      if (op === '>=' && !(id >= val)) return false;
+    }
+    return true;
+  }
+
+  function matchesSingle(id, name, hasShiny, q) {
+    if (!q) return true;
+    if (q === 'shiny' || q === 'chromatique') return hasShiny;
+
+    const genM = q.match(/^gen(\d+)$/);
+    if (genM) {
+      const g = parseInt(genM[1], 10);
+      if (g < 1 || g > GENERATIONS.length) return false;
+      const [from, to] = GENERATIONS[g - 1];
+      return id >= from && id <= to;
+    }
+
+    const exact = q.startsWith('#');
+    const qn = exact ? q.slice(1) : q;
+    if (!qn) return true;
+    if (/^\d+$/.test(qn)) {
+      return exact ? String(id) === qn : String(id).startsWith(qn);
+    }
+    return name.includes(q);
+  }
+
+  function matchesDexQuery(id, name, hasShiny, query) {
+    const raw = norm(query);
+    if (!raw) return true;
+    if (raw.includes(',')) {
+      return raw.split(',').map((s) => s.trim()).filter(Boolean).some((term) => matchesSingle(id, name, hasShiny, term));
+    }
+    if (/[<>&]/.test(raw)) {
+      return matchesRange(id, raw);
+    }
+    return matchesSingle(id, name, hasShiny, raw);
+  }
+
   function openDex() {
     const ids = Object.keys(state.dex).map(Number).sort((a, b) => a - b);
     const total = ids.reduce((n, id) => n + state.dex[id].count, 0);
@@ -775,7 +844,7 @@
     const search = document.createElement('input');
     search.type = 'search';
     search.className = 'pk-search';
-    search.placeholder = 'Rechercher par nom ou n° (ex. pika, 25, #25)';
+    search.placeholder = 'Rechercher (ex. pika, #25, chromatique, gen1, <30, sal,cara,pika)';
     search.setAttribute('aria-label', 'Rechercher dans le Pokédex');
     if (ids.length) box.appendChild(search);
 
@@ -799,7 +868,7 @@
         if (!en.isIntersecting) continue;
         io.unobserve(en.target);
         const img = en.target;
-        spriteDataUrl(img.dataset.src).then((u) => { img.src = u; }).catch(() => {});
+        spriteDataUrl(img.dataset.src).then((u) => { img.src = u; }).catch(() => { });
       }
     }, { root: box, rootMargin: '120px' });
 
@@ -819,7 +888,7 @@
       c.className = 'pk-card-count'; c.textContent = `×${e.count}` + (e.shiny ? `  ✨×${e.shiny}` : '');
       card.append(img, num, n, c);
       grid.appendChild(card);
-      cards.push({ card, id, name: norm(e.name) });
+      cards.push({ card, id, name: norm(e.name), shiny: (e.shiny || 0) > 0 });
     }
     box.append(noRes, grid);
     overlay.appendChild(box);
@@ -827,16 +896,9 @@
     cards.forEach(({ card }) => io.observe(card.querySelector('img')));
 
     function applyFilter() {
-      const raw = norm(search.value);
-      const exact = raw.startsWith('#');
-      const q = raw.replace(/^#/, '');
       let shown = 0;
       for (const c of cards) {
-        let ok = true;
-        if (q) {
-          if (/^\d+$/.test(q)) ok = exact ? String(c.id) === q : String(c.id).startsWith(q);
-          else ok = c.name.includes(q);
-        }
+        const ok = matchesDexQuery(c.id, c.name, c.shiny, search.value);
         c.card.hidden = !ok;
         if (ok) shown++;
       }
@@ -911,122 +973,122 @@
   }
 
   /* ---------------------------- Export / Import --------------------------- */
-/* ---------------------------- Export / Import (.pokesave) --------------------------- */
+  /* ---------------------------- Export / Import (.pokesave) --------------------------- */
 
-// Constantes d'obfuscation / chiffrement (identiques à SaveObfuscator.cs)
-const SAVE_MAGIC = new Uint8Array([0x50, 0x4B, 0x57, 0x31]); // "PKW1"
-const NONCE_SIZE = 12;
-const TAG_SIZE = 16;
-const HEADER_SIZE = 4 + NONCE_SIZE + TAG_SIZE;
-const KEY_STRING = "poke-widget/save/v1/ulgrude:7f3a9c1e";
+  // Constantes d'obfuscation / chiffrement (identiques à SaveObfuscator.cs)
+  const SAVE_MAGIC = new Uint8Array([0x50, 0x4B, 0x57, 0x31]); // "PKW1"
+  const NONCE_SIZE = 12;
+  const TAG_SIZE = 16;
+  const HEADER_SIZE = 4 + NONCE_SIZE + TAG_SIZE;
+  const KEY_STRING = "poke-widget/save/v1/ulgrude:7f3a9c1e";
 
-async function getObfuscationKey() {
-  const enc = new TextEncoder();
-  const keyBytes = await crypto.subtle.digest('SHA-256', enc.encode(KEY_STRING));
-  return crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-}
-
-// Chiffrement : JSON → GZip → AES-GCM (Format: "PKW1" | Nonce 12B | Tag 16B | Cipher)
-async function protectSave(jsonString) {
-  const enc = new TextEncoder();
-  const plainBytes = enc.encode(jsonString);
-
-  // 1. Compression GZip avec CompressionStream
-  const cs = new CompressionStream('gzip');
-  const writer = cs.writable.getWriter();
-  writer.write(plainBytes);
-  writer.close();
-  const compressedBuffer = await new Response(cs.readable).arrayBuffer();
-  const compressedBytes = new Uint8Array(compressedBuffer);
-
-  // 2. Chiffrement AES-GCM (tag 128-bit = 16 octets)
-  const key = await getObfuscationKey();
-  const nonce = crypto.getRandomValues(new Uint8Array(NONCE_SIZE));
-  
-  const encryptedBuffer = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: nonce, tagLength: 128, additionalData: SAVE_MAGIC },
-    key,
-    compressedBytes
-  );
-  
-  // En WebCrypto, le Tag (16B) est automatiquement concaténé à la fin du ciphertext
-  const encryptedBytes = new Uint8Array(encryptedBuffer);
-  const cipherLength = encryptedBytes.length - TAG_SIZE;
-  const cipher = encryptedBytes.subarray(0, cipherLength);
-  const tag = encryptedBytes.subarray(cipherLength);
-
-  // 3. Construction du header "PKW1" | Nonce | Tag | Cipher
-  const output = new Uint8Array(HEADER_SIZE + cipherLength);
-  output.set(SAVE_MAGIC, 0);
-  output.set(nonce, 4);
-  output.set(tag, 4 + NONCE_SIZE);
-  output.set(cipher, HEADER_SIZE);
-
-  return output;
-}
-
-// Déchiffrement
-async function unprotectSave(dataBytes) {
-  if (dataBytes.length < HEADER_SIZE) throw new Error("Fichier de sauvegarde corrompu ou incomplet");
-  
-  for (let i = 0; i < SAVE_MAGIC.length; i++) {
-    if (dataBytes[i] !== SAVE_MAGIC[i]) throw new Error("Fichier de sauvegarde non reconnu (.pokesave attendu)");
+  async function getObfuscationKey() {
+    const enc = new TextEncoder();
+    const keyBytes = await crypto.subtle.digest('SHA-256', enc.encode(KEY_STRING));
+    return crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   }
 
-  const nonce = dataBytes.subarray(4, 4 + NONCE_SIZE);
-  const tag = dataBytes.subarray(4 + NONCE_SIZE, HEADER_SIZE);
-  const cipher = dataBytes.subarray(HEADER_SIZE);
+  // Chiffrement : JSON → GZip → AES-GCM (Format: "PKW1" | Nonce 12B | Tag 16B | Cipher)
+  async function protectSave(jsonString) {
+    const enc = new TextEncoder();
+    const plainBytes = enc.encode(jsonString);
 
-  // Reconstituer le buffer attendu par WebCrypto (Ciphertext + Tag)
-  const ciphertextWithTag = new Uint8Array(cipher.length + TAG_SIZE);
-  ciphertextWithTag.set(cipher, 0);
-  ciphertextWithTag.set(tag, cipher.length);
+    // 1. Compression GZip avec CompressionStream
+    const cs = new CompressionStream('gzip');
+    const writer = cs.writable.getWriter();
+    writer.write(plainBytes);
+    writer.close();
+    const compressedBuffer = await new Response(cs.readable).arrayBuffer();
+    const compressedBytes = new Uint8Array(compressedBuffer);
 
-  const key = await getObfuscationKey();
-  let decryptedBuffer;
-  try {
-    decryptedBuffer = await crypto.subtle.decrypt(
+    // 2. Chiffrement AES-GCM (tag 128-bit = 16 octets)
+    const key = await getObfuscationKey();
+    const nonce = crypto.getRandomValues(new Uint8Array(NONCE_SIZE));
+
+    const encryptedBuffer = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv: nonce, tagLength: 128, additionalData: SAVE_MAGIC },
       key,
-      ciphertextWithTag
+      compressedBytes
     );
-  } catch (e) {
-    throw new Error("Sauvegarde modifiée ou corrompue");
+
+    // En WebCrypto, le Tag (16B) est automatiquement concaténé à la fin du ciphertext
+    const encryptedBytes = new Uint8Array(encryptedBuffer);
+    const cipherLength = encryptedBytes.length - TAG_SIZE;
+    const cipher = encryptedBytes.subarray(0, cipherLength);
+    const tag = encryptedBytes.subarray(cipherLength);
+
+    // 3. Construction du header "PKW1" | Nonce | Tag | Cipher
+    const output = new Uint8Array(HEADER_SIZE + cipherLength);
+    output.set(SAVE_MAGIC, 0);
+    output.set(nonce, 4);
+    output.set(tag, 4 + NONCE_SIZE);
+    output.set(cipher, HEADER_SIZE);
+
+    return output;
   }
 
-  // Décompression GZip
-  const ds = new DecompressionStream('gzip');
-  const writer = ds.writable.getWriter();
-  writer.write(decryptedBuffer);
-  writer.close();
-  
-  const decompressedBuffer = await new Response(ds.readable).arrayBuffer();
-  return new TextDecoder().decode(decompressedBuffer);
-}
+  // Déchiffrement
+  async function unprotectSave(dataBytes) {
+    if (dataBytes.length < HEADER_SIZE) throw new Error("Fichier de sauvegarde corrompu ou incomplet");
 
-// Export au format .pokesave
-async function exportProgress() {
-  const payload = {
-    app: 'poke-widget',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    state,
-    config,
-  };
-  
-  const jsonString = JSON.stringify(payload);
-  const protectedBytes = await protectSave(jsonString);
-  
-  const blob = new Blob([protectedBytes], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `pokedex-${new Date().toISOString().slice(0, 10)}.pokesave`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-}
+    for (let i = 0; i < SAVE_MAGIC.length; i++) {
+      if (dataBytes[i] !== SAVE_MAGIC[i]) throw new Error("Fichier de sauvegarde non reconnu (.pokesave attendu)");
+    }
+
+    const nonce = dataBytes.subarray(4, 4 + NONCE_SIZE);
+    const tag = dataBytes.subarray(4 + NONCE_SIZE, HEADER_SIZE);
+    const cipher = dataBytes.subarray(HEADER_SIZE);
+
+    // Reconstituer le buffer attendu par WebCrypto (Ciphertext + Tag)
+    const ciphertextWithTag = new Uint8Array(cipher.length + TAG_SIZE);
+    ciphertextWithTag.set(cipher, 0);
+    ciphertextWithTag.set(tag, cipher.length);
+
+    const key = await getObfuscationKey();
+    let decryptedBuffer;
+    try {
+      decryptedBuffer = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: nonce, tagLength: 128, additionalData: SAVE_MAGIC },
+        key,
+        ciphertextWithTag
+      );
+    } catch (e) {
+      throw new Error("Sauvegarde modifiée ou corrompue");
+    }
+
+    // Décompression GZip
+    const ds = new DecompressionStream('gzip');
+    const writer = ds.writable.getWriter();
+    writer.write(decryptedBuffer);
+    writer.close();
+
+    const decompressedBuffer = await new Response(ds.readable).arrayBuffer();
+    return new TextDecoder().decode(decompressedBuffer);
+  }
+
+  // Export au format .pokesave
+  async function exportProgress() {
+    const payload = {
+      app: 'poke-widget',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      state,
+      config,
+    };
+
+    const jsonString = JSON.stringify(payload);
+    const protectedBytes = await protectSave(jsonString);
+
+    const blob = new Blob([protectedBytes], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pokedex-${new Date().toISOString().slice(0, 10)}.pokesave`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
 
   // On ne fait jamais confiance au fichier importé : tout est borné/validé.
   function sanitizeState(raw) {
@@ -1098,8 +1160,8 @@ async function exportProgress() {
         <span>Position du widget</span>
         <div class="pk-posgrid" id="pkPosGrid">
           ${Object.entries(POSITIONS).map(([k, label]) =>
-            `<button type="button" class="pk-posbtn${k === draft.position ? ' pk-active' : ''}" data-pos="${k}">${label}</button>`
-          ).join('')}
+      `<button type="button" class="pk-posbtn${k === draft.position ? ' pk-active' : ''}" data-pos="${k}">${label}</button>`
+    ).join('')}
         </div>
       </div>
 
@@ -1127,6 +1189,13 @@ async function exportProgress() {
           <button type="button" class="pk-btn" id="pkCheckUpdate">Vérifier maintenant</button>
         </div>
         <small class="pk-hint" id="pkUpdateMsg">Version installée : ${INSTALLED_VERSION}. Compare avec la version du fichier sur le GitHub, vérifiée automatiquement une fois par jour.</small>
+      </div>
+
+      <div class="pk-field">
+        <span>Communauté</span>
+        <div class="pk-row">
+          <a href="https://discord.gg/6PtyhKa7GA" target="_blank" rel="noopener noreferrer" class="pk-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">💬 Rejoindre le Discord</a>
+        </div>
       </div>
 
       <div class="pk-panel-actions">
@@ -1248,7 +1317,7 @@ async function exportProgress() {
       } catch (e) {
         const why = e && e.status === 404 ? 'fichier introuvable (vérifie CFG.SCRIPT_URL)'
           : e && e.status ? `erreur HTTP ${e.status}`
-          : (e && e.message) || 'GitHub injoignable';
+            : (e && e.message) || 'GitHub injoignable';
         updMsg.textContent = 'Vérification impossible : ' + why;
       }
     });
@@ -1289,7 +1358,7 @@ async function exportProgress() {
 
   evaluateMount();
   // Vérification automatique (au plus une fois par jour, silencieuse en cas d'échec)
-  setTimeout(() => { checkForUpdate().then(() => refreshUpdateUi()).catch(() => {}); }, 3000);
+  setTimeout(() => { checkForUpdate().then(() => refreshUpdateUi()).catch(() => { }); }, 3000);
   setInterval(() => {
     const ballsChanged = tickBalls();
     if (root) {

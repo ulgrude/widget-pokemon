@@ -1,0 +1,30 @@
+name: Release
+
+# Pousser un tag vX.Y.Z construit et publie la release (installateur + mises a jour Velopack).
+#   git tag v1.3.1 && git push origin v1.3.1
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  # Dossier qui contient PokeWidget.sln. Mettre '.' si le depot ne contient que ce projet.
+  PROJECT_DIR: pokewidget
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'   # a garder aligne avec DotNetVersion dans Directory.Build.props
+      - name: Tests, build, paquet et publication
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          & "./$env:PROJECT_DIR/build/release.ps1" -Version $version -Upload

@@ -1,0 +1,23 @@
+<Window x:Class="PokeWidget.Desktop.DexWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Title="Pokédex" Width="780" Height="620" MinWidth="380" MinHeight="300"
+        WindowStartupLocation="CenterScreen" UseLayoutRounding="True"
+        Background="#1E2327" Foreground="#F2F4F5" FontFamily="Segoe UI" FontSize="14"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <DockPanel Margin="16">
+        <TextBlock x:Name="TitleText" DockPanel.Dock="Top" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12"/>
+        <Grid x:Name="SearchGrid" DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBox x:Name="Search" Style="{StaticResource PkTextBox}" TextChanged="Search_TextChanged" FontSize="14"/>
+            <TextBlock x:Name="Hint" Text="Rechercher (ex. pika, #25, chromatique, gen1, &lt;30, sal,cara,pika)" IsHitTestVisible="False"
+                       Opacity="0.45" VerticalAlignment="Center" Margin="12,0,0,0"/>
+        </Grid>
+        <TextBlock x:Name="EmptyText" DockPanel.Dock="Top" Opacity="0.7" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,8"/>
+        <TextBlock x:Name="NoResult" DockPanel.Dock="Top" Opacity="0.7" Visibility="Collapsed" Margin="0,0,0,8"
+                   Text="Aucun Pokémon ne correspond à cette recherche."/>
+        <ScrollViewer x:Name="Scroll" VerticalScrollBarVisibility="Auto" ScrollChanged="Scroll_Changed">
+            <WrapPanel x:Name="Cards"/>
+        </ScrollViewer>
+    </DockPanel>
+</Window>
