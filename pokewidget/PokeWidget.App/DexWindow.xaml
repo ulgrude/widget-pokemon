@@ -10,7 +10,7 @@
         <TextBlock x:Name="TitleText" DockPanel.Dock="Top" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12"/>
         <Grid x:Name="SearchGrid" DockPanel.Dock="Top" Margin="0,0,0,12">
             <TextBox x:Name="Search" Style="{StaticResource PkTextBox}" TextChanged="Search_TextChanged" FontSize="14"/>
-            <TextBlock x:Name="Hint" Text="Rechercher (ex. pika, #25, chromatique, gen1, &lt;30, sal,cara,pika)" IsHitTestVisible="False"
+            <TextBlock x:Name="Hint" Text="Rechercher (ex. pika, #25, doublon, mystère, shiny, gen1, &lt;30)" IsHitTestVisible="False"
                        Opacity="0.45" VerticalAlignment="Center" Margin="12,0,0,0"/>
         </Grid>
         <TextBlock x:Name="EmptyText" DockPanel.Dock="Top" Opacity="0.7" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,8"/>

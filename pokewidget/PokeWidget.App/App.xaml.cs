@@ -41,7 +41,7 @@ public partial class App : Application
         if (repo.Settings.RunAtStartup)
             try { StartupRegistration.Set(true); } catch (Exception) { /* non bloquant */ }
 
-        _tray = new TrayIcon(window.ExpandWidget, window.OpenSettings, window.OpenDex, window.OpenHelp,
+        _tray = new TrayIcon(window.ExpandWidget, window.OpenSettings, window.OpenDex, window.OpenShop, window.OpenHelp,
                              window.ToggleCollapsed, () => window.IsCollapsed, Shutdown, () => _ = updates.PromptAndInstallAsync());
 
         void SyncTray() => _tray?.SetUpdate(updates.Status.Available ? $"⬆ Mise à jour {updates.Status.LatestVersion} disponible" : null);

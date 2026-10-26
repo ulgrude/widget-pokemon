@@ -1,0 +1,172 @@
+<Window x:Class="PokeWidget.Desktop.ShopWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:PokeWidget.Desktop"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Title="Boutique" Width="520" Height="640" MinWidth="420" MinHeight="500"
+        WindowStartupLocation="CenterScreen" UseLayoutRounding="True"
+        Background="#181C20" Foreground="#F2F4F5" FontFamily="Segoe UI" FontSize="14"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20">
+                <TextBlock Text="Boutique" FontSize="20" FontWeight="Bold" Margin="0,0,0,4"/>
+                <TextBlock Text="Échange tes doublons contre des améliorations ou un Pokémon mystère."
+                           Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"/>
+
+                <!-- Solde des doublons -->
+                <Border CornerRadius="10" Background="#14FFFFFF" BorderBrush="#24FFFFFF" BorderThickness="1" Padding="14,12" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Tes doublons disponibles" FontWeight="SemiBold" FontSize="13" Opacity="0.8" Margin="0,0,0,6"/>
+                        <WrapPanel>
+                            <Border CornerRadius="6" Background="#26FFCB05" BorderBrush="#60FFCB05" BorderThickness="1" Padding="10,5" Margin="0,0,10,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="DoublonsCountText" Text="0 doublon" FontWeight="Bold" Foreground="#FFCB05"/>
+                                </StackPanel>
+                            </Border>
+                            <Border CornerRadius="6" Background="#264FC3F7" BorderBrush="#604FC3F7" BorderThickness="1" Padding="10,5" Margin="0,0,0,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="✨ " FontSize="14"/>
+                                    <TextBlock x:Name="ShinyDoublonsCountText" Text="0 doublon chromatique" FontWeight="Bold" Foreground="#4FC3F7"/>
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                        <TextBlock Text="Gagne 1 doublon pour chaque exemplaire en double d'une espèce (le 1er normal et le 1er shiny sont la base). Tes captures restent intactes dans ton Pokédex."
+                                   Opacity="0.5" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 1. Pokémon Mystère -->
+                <Border CornerRadius="10" Background="#0FFFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" Padding="14" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,12,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🌀 " FontSize="16"/>
+                                <TextBlock Text="Pokémon mystère" FontWeight="SemiBold" FontSize="15"/>
+                            </StackPanel>
+                            <TextBlock Text="Donne un Pokémon aléatoire qui peut être chromatique. Achat illimité."
+                                       Opacity="0.7" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,4"/>
+                            <TextBlock Text="Coût : 10 doublons" FontWeight="SemiBold" FontSize="12" Foreground="#FFCB05"/>
+                        </StackPanel>
+                        <Button x:Name="BuyMysteryBtn" Grid.Column="1" VerticalAlignment="Center"
+                                Content="Acheter" Style="{StaticResource PkPrimaryButton}" Click="BuyMystery_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- 2. Capacité des Poké Balls -->
+                <Border CornerRadius="10" Background="#0FFFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" Padding="14" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,12,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⚪ " FontSize="16"/>
+                                <TextBlock Text="Capacité des Balls (+10)" FontWeight="SemiBold" FontSize="15"/>
+                            </StackPanel>
+                            <TextBlock x:Name="BallCapDesc" Text="+10 à la capacité maximale de chaque type de ball (max 150)."
+                                       Opacity="0.7" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,4"/>
+                            <TextBlock x:Name="BallCapStatus" Text="Coût : 5 doublons • 0/5 achats"
+                                       FontWeight="SemiBold" FontSize="12" Foreground="#FFCB05"/>
+                        </StackPanel>
+                        <Button x:Name="BuyBallCapBtn" Grid.Column="1" VerticalAlignment="Center"
+                                Content="Acheter" Style="{StaticResource PkPrimaryButton}" Click="BuyBallCap_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- 3. Taux de capture raté -->
+                <Border CornerRadius="10" Background="#0FFFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" Padding="14" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,12,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🎯 " FontSize="16"/>
+                                <TextBlock Text="Persévérance (+0.02)" FontWeight="SemiBold" FontSize="15"/>
+                            </StackPanel>
+                            <TextBlock Text="+0.02 au taux de capture de l'espèce par Poké Ball manquée sur le Pokémon en cours."
+                                       Opacity="0.7" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,4"/>
+                            <TextBlock x:Name="MissRateStatus" Text="Coût : 100 doublons • 0/1 achat"
+                                       FontWeight="SemiBold" FontSize="12" Foreground="#FFCB05"/>
+                        </StackPanel>
+                        <Button x:Name="BuyMissRateBtn" Grid.Column="1" VerticalAlignment="Center"
+                                Content="Acheter" Style="{StaticResource PkPrimaryButton}" Click="BuyMissRate_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- 4. Chance de chromatique -->
+                <Border CornerRadius="10" Background="#0FFFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" Padding="14" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,12,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="✨ " FontSize="16"/>
+                                <TextBlock Text="Charme chromatique (+25 %)" FontWeight="SemiBold" FontSize="15"/>
+                            </StackPanel>
+                            <TextBlock Text="+25 % de chance d'apparition de chromatiques (sauvages et Pokémon mystères)."
+                                       Opacity="0.7" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,4"/>
+                            <TextBlock x:Name="ShinyBoostStatus" Text="Coût : 1 doublon chromatique • 0/1 achat"
+                                       FontWeight="SemiBold" FontSize="12" Foreground="#4FC3F7"/>
+                        </StackPanel>
+                        <Button x:Name="BuyShinyBoostBtn" Grid.Column="1" VerticalAlignment="Center"
+                                Content="Acheter" Style="{StaticResource PkPrimaryButton}" Click="BuyShinyBoost_Click"/>
+                    </Grid>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Animation et Révélation du Pokémon Mystère -->
+        <Grid x:Name="RevealOverlay" Background="#EA0E1114" Visibility="Collapsed">
+            <Border CornerRadius="16" Background="#23282D" BorderBrush="#40FFFFFF" BorderThickness="1"
+                    Padding="24" Width="360" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="30" ShadowDepth="6" Direction="270" Opacity="0.5" Color="Black"/>
+                </Border.Effect>
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock x:Name="RevealHeader" Text="Ouverture de la Poké Ball…" FontWeight="Bold" FontSize="16"
+                               HorizontalAlignment="Center" Margin="0,0,0,16"/>
+
+                    <!-- Poké Ball qui tremble -->
+                    <Grid x:Name="BallStage" Width="96" Height="96" Margin="0,8,0,16" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <TransformGroup>
+                                <RotateTransform x:Name="RevealBallRot" Angle="0"/>
+                                <ScaleTransform x:Name="RevealBallScale" ScaleX="1" ScaleY="1"/>
+                            </TransformGroup>
+                        </Grid.RenderTransform>
+                        <local:BallIcon Width="72" Height="72" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Sprite du Pokémon qui apparaît -->
+                    <StackPanel x:Name="PokemonResultStage" Visibility="Collapsed" HorizontalAlignment="Center">
+                        <Border x:Name="ResultBg" CornerRadius="12" Background="#18FFFFFF" Width="120" Height="120" Margin="0,0,0,10">
+                            <Image x:Name="RevealSprite" Width="96" Height="96" Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock x:Name="RevealNum" Text="#025" Opacity="0.6" FontSize="12" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="RevealName" Text="Pikachu" FontWeight="Bold" FontSize="18" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="RevealShiny" Text="✨ Chromatique ! ✨" FontWeight="Bold" FontSize="13"
+                                   Foreground="#FFCB05" HorizontalAlignment="Center" Margin="0,2,0,0" Visibility="Collapsed"/>
+                        <TextBlock x:Name="RevealBadges" Text="×1  🌀×1" Opacity="0.75" FontSize="13"
+                                   HorizontalAlignment="Center" Margin="0,4,0,14"/>
+                    </StackPanel>
+
+                    <Button x:Name="CloseRevealBtn" Content="Continuer" Style="{StaticResource PkPrimaryButton}"
+                            Width="140" HorizontalAlignment="Center" Click="CloseReveal_Click" Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

@@ -49,12 +49,26 @@ public static class ProgressFile
             throw new InvalidDataException("fichier non reconnu");
 
         var s = GameState.Fresh(nowMs);
+
+        if (raw.TryGetProperty("shop", out var sh) && sh.ValueKind == JsonValueKind.Object)
+        {
+            s.Shop = new ShopState
+            {
+                BallCapUpgrades = Int(sh, "ballCapUpgrades", 0, 5, 0),
+                MissCatchRateUpgrades = Int(sh, "missCatchRateUpgrades", 0, 1, 0),
+                ShinyBoostUpgrades = Int(sh, "shinyBoostUpgrades", 0, 1, 0),
+                SpentDoublons = Int(sh, "spentDoublons", 0, 1_000_000, 0),
+                SpentShinyDoublons = Int(sh, "spentShinyDoublons", 0, 1_000_000, 0),
+            };
+        }
+
         var b = raw.TryGetProperty("balls", out var be) ? be : default;
+        int maxCap = s.MaxBallCap;
         s.Balls = new BallStock
         {
-            Poke = Int(b, "poke", 0, GameConfig.BallCap, 0),
-            Super = Int(b, "super", 0, GameConfig.BallCap, 0),
-            Hyper = Int(b, "hyper", 0, GameConfig.BallCap, 0),
+            Poke = Int(b, "poke", 0, maxCap, 0),
+            Super = Int(b, "super", 0, maxCap, 0),
+            Hyper = Int(b, "hyper", 0, maxCap, 0),
         };
         if (Num(raw, "lastTick") is double lt) s.LastTick = Math.Min((long)lt, nowMs);
         if (Num(raw, "lastCaptureSlot") is double lc) s.LastCaptureSlot = (long)lc;
@@ -69,7 +83,14 @@ public static class ProgressFile
                 int count = Int(p.Value, "count", 1, 1_000_000, 1);
                 string name = p.Value.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String && n.GetString() is { Length: > 0 } ns
                     ? (ns.Length > 60 ? ns[..60] : ns) : "#" + id;
-                s.Dex[id] = new DexEntry { Name = name, Rate = Int(p.Value, "rate", 1, 255, 45), Count = count, Shiny = Int(p.Value, "shiny", 0, count, 0) };
+                s.Dex[id] = new DexEntry
+                {
+                    Name = name,
+                    Rate = Int(p.Value, "rate", 1, 255, 45),
+                    Count = count,
+                    Shiny = Int(p.Value, "shiny", 0, count, 0),
+                    Mystery = Int(p.Value, "mystery", 0, count, 0),
+                };
             }
         }
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Widget Pokémon
 // @namespace    https://github.com/ulgrude
-// @version      1.4.0
+// @version      1.5.0
 // @description  Un Pokémon seedé en commun, capturable aux Poké/Super/Hyper Balls, sur les pages de ton choix.
 // @author       Ulgrude
 // @updateURL    https://raw.githubusercontent.com/ulgrude/widget-pokemon/main/widget-pokemon.user.js
@@ -82,8 +82,47 @@
     lastTick: Date.now(),
     lastCaptureSlot: null,
     seenSlot: null, // dernier slot "vu" à l'écran (sert à l'animation de l'icône réduite)
-    dex: {}, // id -> { name, rate, count, shiny }
+    missedCount: 0,
+    missedSlot: null,
+    dex: {}, // id -> { name, rate, count, shiny, mystery }
+    shop: {
+      ballCapUpgrades: 0,
+      missCatchRateUpgrades: 0,
+      shinyBoostUpgrades: 0,
+      spentDoublons: 0,
+      spentShinyDoublons: 0,
+    },
   });
+
+  const maxBallCap = () => CFG.BALL_CAP + (((state.shop && state.shop.ballCapUpgrades) || 0) * 10);
+  const getShinyRate = () => CFG.SHINY_RATE * (((state.shop && state.shop.shinyBoostUpgrades) || 0) > 0 ? 1.25 : 1.0);
+  const getEffectiveRate = (baseRate, slot) => {
+    if (((state.shop && state.shop.missCatchRateUpgrades) || 0) > 0 && state.missedSlot === slot) {
+      return baseRate + ((state.missedCount || 0) * 0.02);
+    }
+    return baseRate;
+  };
+
+  function getEarnedDoublons() {
+    let normalDupes = 0;
+    let shinyDupes = 0;
+    for (const e of Object.values(state.dex)) {
+      const normalCount = Math.max(0, (e.count || 0) - (e.shiny || 0));
+      if (normalCount > 1) normalDupes += (normalCount - 1);
+      if ((e.shiny || 0) > 1) shinyDupes += ((e.shiny || 0) - 1);
+    }
+    return { normalDupes, shinyDupes };
+  }
+
+  function getAvailableDoublons() {
+    const { normalDupes, shinyDupes } = getEarnedDoublons();
+    const spent = (state.shop && state.shop.spentDoublons) || 0;
+    const spentShiny = (state.shop && state.shop.spentShinyDoublons) || 0;
+    return {
+      available: Math.max(0, normalDupes - spent),
+      availableShiny: Math.max(0, shinyDupes - spentShiny),
+    };
+  }
 
   const defaultConfig = () => ({
     seed: CFG.DEFAULT_SEED,
@@ -176,7 +215,7 @@
   function spawnFor(slot) {
     const rng = mulberry32(hashStr(config.seed + ':' + slot));
     const id = 1 + Math.floor(rng() * CFG.MAX_POKEMON_ID);
-    const shiny = rng() < CFG.SHINY_RATE;
+    const shiny = rng() < getShinyRate();
     return { slot, id, shiny };
   }
 
@@ -190,7 +229,7 @@
     return Math.pow(b / 65536, 4);
   }
 
-  const addBall = (type, n = 1) => { state.balls[type] = Math.min(CFG.BALL_CAP, state.balls[type] + n); };
+  const addBall = (type, n = 1) => { state.balls[type] = Math.min(maxBallCap(), state.balls[type] + n); };
 
   function tickBalls() {
     const hours = Math.floor((Date.now() - state.lastTick) / CFG.BALL_MS);
@@ -200,6 +239,7 @@
     const trials = { poke: 0, super: 0, hyper: 0 };
     for (const e of Object.values(state.dex)) trials[tierFor(e.rate)] += e.count;
 
+    const cap = maxBallCap();
     for (let h = 0; h < hours; h++) {
       addBall('poke', 1);
       for (const t of Object.keys(trials)) {
@@ -207,7 +247,7 @@
           if (Math.random() < CFG.BONUS_CHANCE) addBall(t, 1);
         }
       }
-      if (Object.values(state.balls).every((n) => n >= CFG.BALL_CAP)) break;
+      if (Object.values(state.balls).every((n) => n >= cap)) break;
     }
     saveState();
     return true;
@@ -450,9 +490,9 @@
 #pokeWidget button{font:inherit;color:inherit;cursor:pointer}
 #pokeWidget button:disabled{cursor:not-allowed}
 #pokeWidget button:focus-visible,.pk-overlay button:focus-visible,.pk-overlay input:focus-visible,.pk-overlay select:focus-visible{outline:2px solid #ffcb05;outline-offset:2px}
-.pk-head{display:flex;justify-content:space-between;align-items:center}
-.pk-title{font-weight:700;letter-spacing:.02em}
-.pk-tools{display:flex;gap:2px}
+.pk-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pk-title{font-weight:700;letter-spacing:.02em;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk-tools{display:flex;gap:2px;flex:0 0 auto}
 .pk-icon{background:none;border:0;border-radius:6px;padding:3px 5px;line-height:1}
 .pk-icon:hover{background:rgba(255,255,255,.12)}
 .pk-stage{position:relative;height:128px;margin:6px 0 2px;display:flex;align-items:center;justify-content:center;border-radius:10px;
@@ -477,7 +517,7 @@
 .pk-ballbtn:disabled{opacity:.4}
 .pk-ballbtn .pk-count{font-size:14px}
 .pk-ballbtn .pk-pct{opacity:.65;font-size:11px;min-height:1.2em}
-.pk-ball{position:relative;width:24px;height:24px;box-sizing:border-box;border:2px solid #15181b;border-radius:50%;
+.pk-ball{position:relative;display:inline-block;width:24px;height:24px;box-sizing:border-box;border:2px solid #15181b;border-radius:50%;
   background:linear-gradient(var(--pk-top) 0 44%,#15181b 44% 56%,#f4f4f4 56%)}
 .pk-ball::after{content:"";position:absolute;top:50%;left:50%;width:8px;height:8px;box-sizing:border-box;transform:translate(-50%,-50%);
   border:2px solid #15181b;border-radius:50%;background:#f4f4f4}
@@ -547,8 +587,34 @@
 .pk-panel-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:4px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)}
 .pk-btn{padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:inherit;font:inherit;font-weight:600;cursor:pointer}
 .pk-btn.pk-primary{background:#ffcb05;border-color:#ffcb05;color:#15181b}
-.pk-btn:hover{filter:brightness(1.1)}
-@media (prefers-reduced-motion:reduce){.pk-shake .pk-sprite{animation:none}.pk-mini.pk-new,.pk-mini.pk-shine{animation:none}}
+.pk-btn:hover:not(:disabled){filter:brightness(1.1)}
+.pk-btn:disabled{opacity:.45;cursor:not-allowed}
+.pk-shop-balance{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px;margin-bottom:14px}
+.pk-badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600}
+.pk-badge-gold{background:rgba(255,203,5,.16);border:1px solid rgba(255,203,5,.4);color:#ffcb05}
+.pk-badge-blue{background:rgba(79,195,247,.16);border:1px solid rgba(79,195,247,.4);color:#4fc3f7}
+.pk-shop-list{display:flex;flex-direction:column;gap:10px}
+.pk-shop-card{display:flex;justify-content:space-between;align-items:center;gap:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px}
+.pk-shop-card-info{flex:1;text-align:left}
+.pk-shop-card-title{font-weight:700;font-size:14px;margin-bottom:2px}
+.pk-shop-card-desc{font-size:12px;opacity:.7;margin-bottom:4px}
+.pk-shop-card-cost{font-size:12px;font-weight:600}
+.pk-shop-panel{position:relative;min-height:360px}
+.pk-reveal-overlay{position:absolute;inset:0;background:rgba(14,17,20,.94);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;z-index:20;text-align:center}
+.pk-reveal-ball{position:relative;display:inline-block;width:72px;height:72px;box-sizing:border-box;border:3px solid #15181b;border-radius:50%;
+  background:linear-gradient(var(--pk-top) 0 43.8%,#15181b 43.8% 56.2%,#f4f4f4 56.2%);margin:12px 0 20px}
+.pk-reveal-ball::before{content:"";position:absolute;top:50%;left:50%;width:24px;height:24px;box-sizing:border-box;transform:translate(-50%,-50%);
+  border-radius:50%;background:#15181b}
+.pk-reveal-ball::after{content:"";position:absolute;top:50%;left:50%;width:17px;height:17px;box-sizing:border-box;transform:translate(-50%,-50%);
+  border-radius:50%;background:#f4f4f4;z-index:1}
+.pk-reveal-wobble{display:inline-block;transform-origin:50% 50%;animation:pk-ball-wobble 1.3s ease-in-out}
+@keyframes pk-ball-wobble{0%,100%{transform:rotate(0)}15%{transform:rotate(-22deg)}30%{transform:rotate(20deg)}45%{transform:rotate(-18deg)}60%{transform:rotate(16deg)}75%{transform:rotate(-10deg)}90%{transform:rotate(6deg)}}
+@keyframes pk-reveal-pop{0%{transform:scale(.7);opacity:0}100%{transform:scale(1);opacity:1}}
+.pk-reveal-result{animation:pk-reveal-pop .4s ease-out;display:flex;flex-direction:column;align-items:center}
+.pk-reveal-stage{width:120px;height:120px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:rgba(255,255,255,.08);margin-bottom:10px}
+.pk-reveal-stage.pk-shiny{background:radial-gradient(ellipse at 50% 85%,rgba(255,203,5,.32),transparent 65%)}
+.pk-reveal-sprite{max-width:96px;max-height:96px;image-rendering:pixelated}
+@media (prefers-reduced-motion:reduce){.pk-shake .pk-sprite{animation:none}.pk-mini.pk-new,.pk-mini.pk-shine{animation:none}.pk-reveal-wobble{animation:none}}
 @media (max-width:520px){#pokeWidget{width:208px}#pokeWidget.pk-pos-top-left,#pokeWidget.pk-pos-bottom-left{left:8px}
   #pokeWidget.pk-pos-top-right,#pokeWidget.pk-pos-bottom-right{right:8px}
   #pokeWidget.pk-pos-top-left,#pokeWidget.pk-pos-top-right{top:8px}#pokeWidget.pk-pos-bottom-left,#pokeWidget.pk-pos-bottom-right{bottom:8px}}
@@ -568,10 +634,11 @@
       </button>
       <div class="pk-full">
         <div class="pk-head">
-          <span class="pk-title">Pokémon</span>
+          <span class="pk-title" title="Poké-widget">Poké-widget</span>
           <span class="pk-tools">
             <button class="pk-icon" data-act="help" title="Comment jouer ?" aria-label="Comment jouer ?">?</button>
             <button class="pk-icon" data-act="dex" title="Pokédex" aria-label="Pokédex">📖</button>
+            <button class="pk-icon" data-act="shop" title="Boutique" aria-label="Boutique">🏪</button>
             <button class="pk-icon" data-act="settings" title="Réglages" aria-label="Réglages">⚙️</button>
             <button class="pk-icon" data-act="min" title="Réduire" aria-label="Réduire">−</button>
           </span>
@@ -612,6 +679,7 @@
       if (!act) return;
       if (act.dataset.act === 'help') openHelp();
       if (act.dataset.act === 'dex') openDex();
+      if (act.dataset.act === 'shop') openShop();
       if (act.dataset.act === 'settings') openSettings();
       if (act.dataset.act === 'min') setCollapsed(true);
       if (act.dataset.act === 'expand') setCollapsed(false);
@@ -685,10 +753,11 @@
 
   function render() {
     if (!root || !el) return;
+    const effRate = current ? getEffectiveRate(current.rate, current.slot) : 45;
     for (const [k, b] of Object.entries(BALLS)) {
       const btn = el.btns[k];
       btn.querySelector('.pk-count').textContent = state.balls[k];
-      const pct = current ? catchProb(current.rate, b.bonus) * 100 : null;
+      const pct = current ? catchProb(effRate, b.bonus) * 100 : null;
       btn.querySelector('.pk-pct').textContent = pct === null ? '' : pct < 1 ? '<1 %' : `${Math.round(pct)} %`;
       btn.disabled = busy || !current || isCaught() || state.balls[k] <= 0;
     }
@@ -701,7 +770,8 @@
       const inDex = !!(state.dex[current.id]);
       if (el.nameBall) el.nameBall.style.display = inDex ? 'inline-block' : 'none';
       el.name.textContent = (current.shiny ? '✨ ' : '') + current.name;
-      el.meta.textContent = `Taux de capture : ${current.rate}`;
+      const bonusRate = effRate > current.rate ? ` (+${((state.missedCount || 0) * 0.02).toFixed(2)})` : '';
+      el.meta.textContent = `Taux de capture : ${current.rate}${bonusRate}`;
       el.stage.classList.toggle('pk-caught', !!isCaught());
       el.stage.classList.toggle('pk-shiny', current.shiny);
     }
@@ -748,13 +818,20 @@
     setTimeout(() => {
       if (el) el.stage.classList.remove('pk-shake');
       busy = false;
-      if (Math.random() < catchProb(target.rate, BALLS[type].bonus)) {
-        const e = state.dex[target.id] || (state.dex[target.id] = { name: target.name, rate: target.rate, count: 0, shiny: 0 });
+      if (state.missedSlot !== target.slot) {
+        state.missedSlot = target.slot;
+        state.missedCount = 0;
+      }
+      const effRate = getEffectiveRate(target.rate, target.slot);
+      if (Math.random() < catchProb(effRate, BALLS[type].bonus)) {
+        state.missedCount = 0;
+        const e = state.dex[target.id] || (state.dex[target.id] = { name: target.name, rate: target.rate, count: 0, shiny: 0, mystery: 0 });
         e.count++;
         if (target.shiny) e.shiny++;
         state.lastCaptureSlot = target.slot;
         say(target.shiny ? '✨ Chromatique capturé !' : `${target.name} capturé !`);
       } else {
+        state.missedCount = (state.missedCount || 0) + 1;
         say('Raté, il est toujours là.');
       }
       saveState();
@@ -794,9 +871,11 @@
     return true;
   }
 
-  function matchesSingle(id, name, hasShiny, q) {
+  function matchesSingle(id, name, hasShiny, hasMystery, hasDuplicate, q) {
     if (!q) return true;
     if (q === 'shiny' || q === 'chromatique') return hasShiny;
+    if (q === 'mystere' || q === 'mystère') return hasMystery;
+    if (q === 'doublon' || q === 'doublons') return hasDuplicate;
 
     const genM = q.match(/^gen(\d+)$/);
     if (genM) {
@@ -815,16 +894,16 @@
     return name.includes(q);
   }
 
-  function matchesDexQuery(id, name, hasShiny, query) {
+  function matchesDexQuery(id, name, hasShiny, hasMystery, hasDuplicate, query) {
     const raw = norm(query);
     if (!raw) return true;
     if (raw.includes(',')) {
-      return raw.split(',').map((s) => s.trim()).filter(Boolean).some((term) => matchesSingle(id, name, hasShiny, term));
+      return raw.split(',').map((s) => s.trim()).filter(Boolean).some((term) => matchesSingle(id, name, hasShiny, hasMystery, hasDuplicate, term));
     }
     if (/[<>&]/.test(raw)) {
       return matchesRange(id, raw);
     }
-    return matchesSingle(id, name, hasShiny, raw);
+    return matchesSingle(id, name, hasShiny, hasMystery, hasDuplicate, raw);
   }
 
   function openDex() {
@@ -844,7 +923,7 @@
     const search = document.createElement('input');
     search.type = 'search';
     search.className = 'pk-search';
-    search.placeholder = 'Rechercher (ex. pika, #25, chromatique, gen1, <30, sal,cara,pika)';
+    search.placeholder = 'Rechercher (ex. pika, #25, doublon, mystère, shiny, gen1, <30)';
     search.setAttribute('aria-label', 'Rechercher dans le Pokédex');
     if (ids.length) box.appendChild(search);
 
@@ -885,10 +964,13 @@
       const n = document.createElement('div');
       n.className = 'pk-card-name'; n.textContent = e.name;
       const c = document.createElement('div');
-      c.className = 'pk-card-count'; c.textContent = `×${e.count}` + (e.shiny ? `  ✨×${e.shiny}` : '');
+      c.className = 'pk-card-count';
+      c.textContent = `×${e.count}` + (e.shiny ? `  ✨×${e.shiny}` : '') + (e.mystery ? `  🌀×${e.mystery}` : '');
       card.append(img, num, n, c);
       grid.appendChild(card);
-      cards.push({ card, id, name: norm(e.name), shiny: (e.shiny || 0) > 0 });
+      const normalCount = Math.max(0, (e.count || 0) - (e.shiny || 0));
+      const hasDuplicate = normalCount > 1 || (e.shiny || 0) > 1;
+      cards.push({ card, id, name: norm(e.name), shiny: (e.shiny || 0) > 0, mystery: (e.mystery || 0) > 0, duplicate: hasDuplicate });
     }
     box.append(noRes, grid);
     overlay.appendChild(box);
@@ -898,7 +980,7 @@
     function applyFilter() {
       let shown = 0;
       for (const c of cards) {
-        const ok = matchesDexQuery(c.id, c.name, c.shiny, search.value);
+        const ok = matchesDexQuery(c.id, c.name, c.shiny, c.mystery, c.duplicate, search.value);
         c.card.hidden = !ok;
         if (ok) shown++;
       }
@@ -910,6 +992,239 @@
     const closeIt = () => { io.disconnect(); overlay.remove(); document.removeEventListener('keydown', onKey); };
     const onKey = (ev) => { if (ev.key === 'Escape') closeIt(); };
     overlay.addEventListener('click', (ev) => { if (ev.target === overlay || ev.target.closest('[data-close]')) closeIt(); });
+    document.addEventListener('keydown', onKey);
+  }
+
+  /* -------------------------------- Boutique ------------------------------- */
+  function openShop() {
+    const overlay = document.createElement('div');
+    overlay.className = 'pk-overlay';
+    const box = document.createElement('div');
+    box.className = 'pk-panel pk-shop-panel';
+    box.style.maxWidth = '520px';
+
+    box.innerHTML = `
+      <div class="pk-panel-head">
+        <h2>Boutique Pokémon</h2>
+        <button class="pk-icon" data-close aria-label="Fermer">✕</button>
+      </div>
+      <p class="pk-hint" style="margin:0 0 14px">Échange tes doublons contre des améliorations ou un Pokémon mystère.</p>
+      
+      <div class="pk-shop-balance">
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px">Tes doublons disponibles :</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <span class="pk-badge pk-badge-gold"><b id="shopDoublons">0</b> doublon(s)</span>
+          <span class="pk-badge pk-badge-blue">✨ <b id="shopShinyDoublons">0</b> doublon(s) chromatique(s)</span>
+        </div>
+        <small class="pk-hint" style="margin-top:8px">Gagne 1 doublon pour chaque exemplaire en double d'une espèce (le 1er normal et le 1er shiny sont la base). Tes captures restent intactes dans ton Pokédex.</small>
+      </div>
+
+      <div class="pk-shop-list">
+        <div class="pk-shop-card">
+          <div class="pk-shop-card-info">
+            <div class="pk-shop-card-title">🌀 Pokémon mystère</div>
+            <div class="pk-shop-card-desc">Donne un Pokémon aléatoire qui peut être chromatique. Achat illimité.</div>
+            <div class="pk-shop-card-cost" style="color:#ffcb05">Coût : 10 doublons</div>
+          </div>
+          <button class="pk-btn pk-primary" id="btnShopMystery">Acheter</button>
+        </div>
+
+        <div class="pk-shop-card">
+          <div class="pk-shop-card-info">
+            <div class="pk-shop-card-title">⚪ Capacité des Balls (+10)</div>
+            <div class="pk-shop-card-desc" id="shopBallCapDesc">+10 à la capacité maximale de chaque type de ball (max 150).</div>
+            <div class="pk-shop-card-cost" id="shopBallCapCost" style="color:#ffcb05">Coût : 5 doublons • 0/5 achats</div>
+          </div>
+          <button class="pk-btn pk-primary" id="btnShopBallCap">Acheter</button>
+        </div>
+
+        <div class="pk-shop-card">
+          <div class="pk-shop-card-info">
+            <div class="pk-shop-card-title">🎯 Persévérance (+0.02)</div>
+            <div class="pk-shop-card-desc">+0.02 au taux de capture de l'espèce par Poké Ball manquée sur le Pokémon en cours.</div>
+            <div class="pk-shop-card-cost" id="shopMissRateCost" style="color:#ffcb05">Coût : 100 doublons • 0/1 achat</div>
+          </div>
+          <button class="pk-btn pk-primary" id="btnShopMissRate">Acheter</button>
+        </div>
+
+        <div class="pk-shop-card">
+          <div class="pk-shop-card-info">
+            <div class="pk-shop-card-title">✨ Charme chromatique (+25 %)</div>
+            <div class="pk-shop-card-desc">+25 % de chance d'apparition de chromatiques (sauvages et mystères).</div>
+            <div class="pk-shop-card-cost" id="shopShinyBoostCost" style="color:#4fc3f7">Coût : 1 doublon chromatique • 0/1 achat</div>
+          </div>
+          <button class="pk-btn pk-primary" id="btnShopShinyBoost">Acheter</button>
+        </div>
+      </div>
+
+      <div class="pk-reveal-overlay" id="shopRevealOverlay" style="display:none">
+        <div style="font-weight:700;font-size:16px;margin-bottom:16px" id="revealTitle">La Poké Ball s'agite…</div>
+        <div id="revealBallStage">
+          <span class="pk-ball pk-poke pk-reveal-ball pk-reveal-wobble"></span>
+        </div>
+        <div class="pk-reveal-result" id="revealResultStage" style="display:none">
+          <div class="pk-reveal-stage" id="revealResultBg">
+            <img class="pk-reveal-sprite" id="revealSprite" alt="">
+          </div>
+          <div id="revealNum" style="opacity:.6;font-size:12px"></div>
+          <div id="revealName" style="font-weight:700;font-size:18px"></div>
+          <div id="revealShiny" style="font-weight:700;font-size:13px;color:#ffcb05;margin:2px 0;display:none">✨ Chromatique ! ✨</div>
+          <div id="revealBadges" style="opacity:.8;font-size:13px;margin:4px 0 16px"></div>
+          <button class="pk-btn pk-primary" id="btnDismissReveal" style="min-width:140px">Continuer</button>
+        </div>
+      </div>
+    `;
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const refreshShopUi = () => {
+      state.shop = state.shop || { ballCapUpgrades: 0, missCatchRateUpgrades: 0, shinyBoostUpgrades: 0, spentDoublons: 0, spentShinyDoublons: 0 };
+      const { available, availableShiny } = getAvailableDoublons();
+      box.querySelector('#shopDoublons').textContent = available;
+      box.querySelector('#shopShinyDoublons').textContent = availableShiny;
+
+      const btnMystery = box.querySelector('#btnShopMystery');
+      btnMystery.disabled = available < 10;
+
+      const btnBallCap = box.querySelector('#btnShopBallCap');
+      const capLvl = state.shop.ballCapUpgrades || 0;
+      box.querySelector('#shopBallCapDesc').textContent = `+10 à la capacité maximale de chaque type de ball (actuel : ${maxBallCap()}).`;
+      box.querySelector('#shopBallCapCost').textContent = capLvl >= 5 ? 'Niveau max atteint (150 balls)' : `Coût : 5 doublons • ${capLvl}/5 achats`;
+      btnBallCap.textContent = capLvl >= 5 ? 'Max' : 'Acheter';
+      btnBallCap.disabled = capLvl >= 5 || available < 5;
+
+      const btnMiss = box.querySelector('#btnShopMissRate');
+      const missLvl = state.shop.missCatchRateUpgrades || 0;
+      box.querySelector('#shopMissRateCost').textContent = missLvl >= 1 ? 'Amélioration active' : 'Coût : 100 doublons • 0/1 achat';
+      btnMiss.textContent = missLvl >= 1 ? 'Acheté' : 'Acheter';
+      btnMiss.disabled = missLvl >= 1 || available < 100;
+
+      const btnShiny = box.querySelector('#btnShopShinyBoost');
+      const shinyLvl = state.shop.shinyBoostUpgrades || 0;
+      box.querySelector('#shopShinyBoostCost').textContent = shinyLvl >= 1 ? 'Amélioration active' : 'Coût : 1 doublon chromatique • 0/1 achat';
+      btnShiny.textContent = shinyLvl >= 1 ? 'Acheté' : 'Acheter';
+      btnShiny.disabled = shinyLvl >= 1 || availableShiny < 1;
+    };
+
+    refreshShopUi();
+
+    box.querySelector('#btnShopBallCap').addEventListener('click', () => {
+      const { available } = getAvailableDoublons();
+      if ((state.shop.ballCapUpgrades || 0) < 5 && available >= 5) {
+        state.shop.spentDoublons = (state.shop.spentDoublons || 0) + 5;
+        state.shop.ballCapUpgrades = (state.shop.ballCapUpgrades || 0) + 1;
+        saveState();
+        refreshShopUi();
+        render();
+      }
+    });
+
+    box.querySelector('#btnShopMissRate').addEventListener('click', () => {
+      const { available } = getAvailableDoublons();
+      if ((state.shop.missCatchRateUpgrades || 0) < 1 && available >= 100) {
+        state.shop.spentDoublons = (state.shop.spentDoublons || 0) + 100;
+        state.shop.missCatchRateUpgrades = 1;
+        saveState();
+        refreshShopUi();
+        render();
+      }
+    });
+
+    box.querySelector('#btnShopShinyBoost').addEventListener('click', () => {
+      const { availableShiny } = getAvailableDoublons();
+      if ((state.shop.shinyBoostUpgrades || 0) < 1 && availableShiny >= 1) {
+        state.shop.spentShinyDoublons = (state.shop.spentShinyDoublons || 0) + 1;
+        state.shop.shinyBoostUpgrades = 1;
+        saveState();
+        refreshShopUi();
+        render();
+      }
+    });
+
+    let busyMystery = false;
+    box.querySelector('#btnShopMystery').addEventListener('click', async () => {
+      const { available } = getAvailableDoublons();
+      if (busyMystery || available < 10) return;
+      busyMystery = true;
+
+      const id = 1 + Math.floor(Math.random() * CFG.MAX_POKEMON_ID);
+      const shiny = Math.random() < getShinyRate();
+
+      state.shop.spentDoublons = (state.shop.spentDoublons || 0) + 10;
+      saveState();
+      refreshShopUi();
+
+      let info;
+      try { info = await getSpecies(id); } catch { info = { name: `#${id}`, rate: 45 }; }
+
+      const e = state.dex[id] || (state.dex[id] = { name: info.name, rate: info.rate, count: 0, shiny: 0, mystery: 0 });
+      e.count++;
+      if (shiny) e.shiny++;
+      e.mystery = (e.mystery || 0) + 1;
+      saveState();
+      render();
+
+      const overlayReveal = box.querySelector('#shopRevealOverlay');
+      const ballStage = box.querySelector('#revealBallStage');
+      const resultStage = box.querySelector('#revealResultStage');
+      const title = box.querySelector('#revealTitle');
+      const spriteImg = box.querySelector('#revealSprite');
+      const num = box.querySelector('#revealNum');
+      const name = box.querySelector('#revealName');
+      const shinyLabel = box.querySelector('#revealShiny');
+      const badges = box.querySelector('#revealBadges');
+      const resultBg = box.querySelector('#revealResultBg');
+
+      box.scrollTop = 0;
+      overlayReveal.style.display = 'flex';
+      title.textContent = "La Poké Ball s'agite…";
+      ballStage.style.display = 'block';
+      resultStage.style.display = 'none';
+
+      const ballEl = ballStage.querySelector('.pk-reveal-ball');
+      ballEl.classList.remove('pk-reveal-wobble');
+      void ballEl.offsetWidth; // re-trigger animation
+      ballEl.classList.add('pk-reveal-wobble');
+
+      // Préchargement sprite
+      const spriteUrl = `${SPRITES}${shiny ? 'shiny/' : ''}${id}.png`;
+      spriteDataUrl(spriteUrl).then((u) => { spriteImg.src = u; }).catch(() => { spriteImg.src = spriteUrl; });
+
+      setTimeout(() => {
+        ballStage.style.display = 'none';
+        resultStage.style.display = 'flex';
+        title.textContent = shiny ? '✨ Un Pokémon chromatique mystère !' : 'Pokémon mystère obtenu !';
+        num.textContent = `#${id}`;
+        name.textContent = info.name;
+        shinyLabel.style.display = shiny ? 'block' : 'none';
+        resultBg.className = `pk-reveal-stage ${shiny ? 'pk-shiny' : ''}`;
+        badges.textContent = `×${e.count}` + (e.shiny ? `  ✨×${e.shiny}` : '') + `  🌀×${e.mystery}`;
+        busyMystery = false;
+        refreshShopUi();
+      }, 1300);
+    });
+
+    box.querySelector('#btnDismissReveal').addEventListener('click', () => {
+      box.querySelector('#shopRevealOverlay').style.display = 'none';
+      refreshShopUi();
+    });
+
+    const closeIt = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (ev) => {
+      if (ev.key === 'Escape') {
+        const rev = box.querySelector('#shopRevealOverlay');
+        if (rev && rev.style.display === 'flex' && !busyMystery) {
+          rev.style.display = 'none';
+          refreshShopUi();
+        } else if (!rev || rev.style.display === 'none') {
+          closeIt();
+        }
+      }
+    };
+    overlay.addEventListener('click', (ev) => {
+      if (ev.target === overlay || ev.target.closest('[data-close]')) closeIt();
+    });
     document.addEventListener('keydown', onKey);
   }
 
@@ -949,7 +1264,7 @@
         <li><span class="pk-ball pk-super"></span><b>Super Ball</b> : ×1,5 sur la chance de capture.</li>
         <li><span class="pk-ball pk-hyper"></span><b>Hyper Ball</b> : ×2 sur la chance de capture.</li>
       </ul>
-      <p>Tu démarres avec ${CFG.START_BALLS} Poké Balls, et tu ne peux pas dépasser ${CFG.BALL_CAP} balls de chaque type.</p>
+      <p>Tu démarres avec ${CFG.START_BALLS} Poké Balls, et tu ne peux pas dépasser ${CFG.BALL_CAP} balls de chaque type (extensible jusqu'à 150 en boutique).</p>
 
       <h3>Gagner des balls</h3>
       <ul>
@@ -958,8 +1273,17 @@
         <li>Le type de ball offerte dépend du taux de capture de l'espèce : Poké Ball à partir de 120, Super Ball de 46 à 119, Hyper Ball à 45 ou moins. Les Pokémon difficiles à attraper rapportent donc de meilleures balls.</li>
       </ul>
 
-      <h3>Pokédex et sauvegarde</h3>
-      <p>Le Pokédex 📖 liste tes captures, avec une recherche par nom ou numéro. Dans les réglages, tu peux exporter ta progression en fichier .json et la réimporter plus tard.</p>
+      <h3>Boutique et doublons</h3>
+      <p>Chaque Pokémon déjà présent dans ton Pokédex capturé à nouveau te rapporte un doublon (et un doublon chromatique pour chaque shiny en double). Tes captures restent intactes dans ton Pokédex !</p>
+      <ul>
+        <li><b>Pokémon mystère 🌀</b> (10 doublons) : donne un Pokémon aléatoire (peut être chromatique), avec un badge 🌀 spécifique dans le Pokédex.</li>
+        <li><b>Capacité des balls (+10)</b> (5 doublons) : jusqu'à 5 améliorations (maximum 150 balls par type).</li>
+        <li><b>Persévérance</b> (100 doublons) : augmente de +0.02 le taux de capture de l'espèce par Poké Ball manquée sur le Pokémon en cours.</li>
+        <li><b>Charme chromatique</b> (1 doublon chromatique) : +25 % de chance d'apparition de chromatiques.</li>
+      </ul>
+
+      <h3>Pokédex et recherche</h3>
+      <p>Le Pokédex 📖 liste tes captures. Tu peux rechercher par nom, par numéro (#25, &lt;30), par génération (gen1), mais aussi par mots-clés : « shiny », « mystère » (Pokémon obtenus en boutique) et « doublon » (Pokémon que tu possèdes en plusieurs exemplaires). Dans les réglages, tu peux exporter ta progression en fichier .pokesave et la réimporter plus tard.</p>
 
       <h3>Réduire le widget</h3>
       <p>Le bouton − réduit le widget à une Poké Ball. Elle se balance quand un nouveau Pokémon est apparu, et brille en doré quand un chromatique est là.</p>`;
@@ -1098,11 +1422,21 @@
       return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
     };
     const s = freshState();
+    if (raw.shop && typeof raw.shop === 'object') {
+      s.shop = {
+        ballCapUpgrades: int(raw.shop.ballCapUpgrades, 0, 5, 0),
+        missCatchRateUpgrades: int(raw.shop.missCatchRateUpgrades, 0, 1, 0),
+        shinyBoostUpgrades: int(raw.shop.shinyBoostUpgrades, 0, 1, 0),
+        spentDoublons: int(raw.shop.spentDoublons, 0, 1e6, 0),
+        spentShinyDoublons: int(raw.shop.spentShinyDoublons, 0, 1e6, 0),
+      };
+    }
+    const cap = CFG.BALL_CAP + (((s.shop && s.shop.ballCapUpgrades) || 0) * 10);
     const b = raw.balls || {};
     s.balls = {
-      poke: int(b.poke, 0, CFG.BALL_CAP, 0),
-      super: int(b.super, 0, CFG.BALL_CAP, 0),
-      hyper: int(b.hyper, 0, CFG.BALL_CAP, 0),
+      poke: int(b.poke, 0, cap, 0),
+      super: int(b.super, 0, cap, 0),
+      hyper: int(b.hyper, 0, cap, 0),
     };
     s.lastTick = Number.isFinite(raw.lastTick) ? Math.min(raw.lastTick, Date.now()) : Date.now();
     s.lastCaptureSlot = Number.isFinite(raw.lastCaptureSlot) ? raw.lastCaptureSlot : null;
@@ -1118,6 +1452,7 @@
           rate: int(e.rate, 1, 255, 45),
           count,
           shiny: int(e.shiny, 0, count, 0),
+          mystery: int(e.mystery, 0, count, 0),
         };
       }
     }
@@ -1354,6 +1689,7 @@
   // courante : on peut les ouvrir depuis le menu de l'extension, n'importe où.
   GM_registerMenuCommand('⚙️ Réglages Pokémon', openSettings);
   GM_registerMenuCommand('📖 Pokédex', openDex);
+  GM_registerMenuCommand('🏪 Boutique', openShop);
   GM_registerMenuCommand('❓ Comment jouer ?', openHelp);
 
   evaluateMount();

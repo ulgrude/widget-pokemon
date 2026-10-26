@@ -17,6 +17,8 @@ public partial class DexWindow : Window
         public required int Id { get; init; }
         public required string Name { get; init; }
         public required bool Shiny { get; init; }
+        public required bool Mystery { get; init; }
+        public required bool HasDuplicate { get; init; }
         public bool Loaded { get; set; }
     }
 
@@ -60,7 +62,7 @@ public partial class DexWindow : Window
         panel.Children.Add(new TextBlock { Text = e.Name, FontSize = 13, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center });
         panel.Children.Add(new TextBlock
         {
-            Text = $"×{e.Count}" + (e.Shiny > 0 ? $"  ✨×{e.Shiny}" : ""),
+            Text = $"×{e.Count}" + (e.Shiny > 0 ? $"  ✨×{e.Shiny}" : "") + (e.Mystery > 0 ? $"  🌀×{e.Mystery}" : ""),
             FontSize = 12, Opacity = 0.7, HorizontalAlignment = HorizontalAlignment.Center,
         });
 
@@ -71,7 +73,14 @@ public partial class DexWindow : Window
             Background = new SolidColorBrush(Color.FromArgb(0x0F, 0xFF, 0xFF, 0xFF)),
         };
         Cards.Children.Add(card);
-        _cards.Add(new CardInfo { Card = card, Img = img, Id = id, Name = e.Name, Shiny = e.Shiny > 0 });
+
+        int normalCount = Math.Max(0, e.Count - e.Shiny);
+        bool hasDuplicate = normalCount > 1 || e.Shiny > 1;
+        _cards.Add(new CardInfo
+        {
+            Card = card, Img = img, Id = id, Name = e.Name,
+            Shiny = e.Shiny > 0, Mystery = e.Mystery > 0, HasDuplicate = hasDuplicate,
+        });
     }
 
     // Les sprites ne sont chargés que lorsque la carte approche de la zone visible.
@@ -118,8 +127,7 @@ public partial class DexWindow : Window
         int shown = 0;
         foreach (var c in _cards)
         {
-            // hasShiny = la card a un shiny dans le dex (on le déduit de c.Shiny qui indique e.Shiny > 0)
-            bool ok = DexSearch.Matches(c.Id, c.Name, c.Shiny, Search.Text);
+            bool ok = DexSearch.Matches(c.Id, c.Name, c.Shiny, c.Mystery, c.HasDuplicate, Search.Text);
             c.Card.Visibility = ok ? Visibility.Visible : Visibility.Collapsed;
             if (ok) shown++;
         }

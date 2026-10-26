@@ -6,7 +6,7 @@
     <UseWindowsForms>true</UseWindowsForms> <!-- uniquement pour NotifyIcon -->
     <RootNamespace>PokeWidget.Desktop</RootNamespace>
     <AssemblyName>PokeWidget</AssemblyName>
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- Main personnalisé (App.xaml.cs) : Velopack doit s'exécuter avant tout le reste -->

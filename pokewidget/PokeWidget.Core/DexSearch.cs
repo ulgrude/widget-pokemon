@@ -36,12 +36,17 @@ public static class DexSearch
     ///   - "25"            → numéros commençant par 25
     ///   - "#25"           → numéro exact
     ///   - "chromatique" / "shiny" → entrées avec au moins 1 shiny
+    ///   - "mystere" / "mystère"   → entrées obtenues via pokémon mystère
+    ///   - "doublon" / "doublons"  → entrées ayant au moins 1 doublon
     ///   - "gen1" … "gen9" → génération
     ///   - "sal,cara,pika" → plusieurs termes séparés par des virgules (OR)
     ///   - "&lt;30"        → IDs 1–29
     ///   - "&gt;=30 &amp; &lt;50" → IDs 30–49 (opérateurs : &lt; &lt;= &gt; &gt;= avec &amp; entre eux)
     /// </summary>
-    public static bool Matches(int id, string name, bool hasShiny, string query)
+    public static bool Matches(int id, string name, bool hasShiny, string query) =>
+        Matches(id, name, hasShiny, false, false, query);
+
+    public static bool Matches(int id, string name, bool hasShiny, bool hasMystery, bool hasDuplicate, string query)
     {
         string raw = Normalize(query);
         if (raw.Length == 0) return true;
@@ -49,22 +54,30 @@ public static class DexSearch
         // Virgule → OR sur plusieurs termes
         if (raw.Contains(','))
             return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                      .Any(t => MatchesSingle(id, name, hasShiny, t));
+                      .Any(t => MatchesSingle(id, name, hasShiny, hasMystery, hasDuplicate, t));
 
         // Plage numérique (contient '<', '>', '&' ou '=')
         if (raw.IndexOfAny(['<', '>', '&']) >= 0)
             return MatchesRange(id, raw);
 
-        return MatchesSingle(id, name, hasShiny, raw);
+        return MatchesSingle(id, name, hasShiny, hasMystery, hasDuplicate, raw);
     }
 
-    private static bool MatchesSingle(int id, string name, bool hasShiny, string q)
+    private static bool MatchesSingle(int id, string name, bool hasShiny, bool hasMystery, bool hasDuplicate, string q)
     {
         if (q.Length == 0) return true;
 
         // Shiny / chromatique
         if (q == "shiny" || q == "chromatique")
             return hasShiny;
+
+        // Mystère
+        if (q == "mystere" || q == "mystère")
+            return hasMystery;
+
+        // Doublon
+        if (q == "doublon" || q == "doublons")
+            return hasDuplicate;
 
         // Génération (gen1 … gen9)
         var genMatch = Regex.Match(q, @"^gen(\d)$");

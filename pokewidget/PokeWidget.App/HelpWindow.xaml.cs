@@ -42,8 +42,15 @@ public partial class HelpWindow : Window
         Li($"Bonus : chaque heure, chaque capture de ton Pokédex a {bonusPct} % de chance de te donner une ball supplémentaire. Capturer deux fois la même espèce compte deux fois.");
         Li($"Le type de ball offerte dépend du taux de capture de l'espèce : Poké Ball à partir de 120, Super Ball de 46 à 119, Hyper Ball à 45 ou moins. Les Pokémon difficiles à attraper rapportent donc de meilleures balls.");
 
-        H("Pokédex et sauvegarde");
-        P("Le Pokédex liste tes captures, avec une recherche par nom ou numéro. Dans les réglages, tu peux exporter ta progression dans un fichier .pokesave et la réimporter plus tard.");
+        H("Boutique et doublons");
+        P("Chaque Pokémon déjà présent dans ton Pokédex capturé à nouveau te rapporte un doublon (et un doublon chromatique pour chaque shiny en double). Tes captures restent intactes dans ton Pokédex !");
+        Li("Pokémon mystère 🌀 (10 doublons) : donne un Pokémon aléatoire (peut être chromatique), avec un badge 🌀 spécifique dans le Pokédex.");
+        Li("Capacité des balls (+10) (5 doublons) : jusqu'à 5 améliorations (maximum 150 balls par type).");
+        Li("Persévérance (100 doublons) : augmente de +0.02 le taux de capture de l'espèce par Poké Ball manquée sur le Pokémon en cours.");
+        Li("Charme chromatique (1 doublon chromatique) : +25 % de chance d'apparition de chromatiques.");
+
+        H("Pokédex et recherche");
+        P("Le Pokédex liste tes captures. Tu peux rechercher par nom, par numéro (#25, <30), par génération (gen1), mais aussi par mots-clés : « shiny », « mystère » (Pokémon obtenus en boutique) et « doublon » (Pokémon que tu possèdes en plusieurs exemplaires).");
 
         H("Réduire le widget");
         P("Le bouton − (ou le clic droit) réduit le widget à une Poké Ball. Elle se balance quand un nouveau Pokémon est apparu, et brille en doré quand un chromatique est là.");

@@ -11,7 +11,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly WinForms.ToolStripMenuItem _update = new() { Visible = false };
     private readonly WinForms.ToolStripSeparator _updateSep = new() { Visible = false };
 
-    public TrayIcon(Action showWidget, Action openSettings, Action openDex, Action openHelp,
+    public TrayIcon(Action showWidget, Action openSettings, Action openDex, Action openShop, Action openHelp,
                     Action toggleCollapsed, Func<bool> isCollapsed, Action quit, Action openUpdate)
     {
         var menu = new WinForms.ContextMenuStrip();
@@ -23,6 +23,7 @@ internal sealed class TrayIcon : IDisposable
         menu.Items.Add(toggle);
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add("Pokédex", null, (_, _) => openDex());
+        menu.Items.Add("Boutique", null, (_, _) => openShop());
         menu.Items.Add("Réglages…", null, (_, _) => openSettings());
         menu.Items.Add("Comment jouer ?", null, (_, _) => openHelp());
         menu.Items.Add(new WinForms.ToolStripSeparator());

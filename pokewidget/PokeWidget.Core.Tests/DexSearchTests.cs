@@ -44,4 +44,20 @@ public class DexSearchTests
     [InlineData(810, "Ouistempo",  false, "gen9", false)]
     public void Matches_AllCases(int id, string name, bool hasShiny, string query, bool expected) =>
         Assert.Equal(expected, DexSearch.Matches(id, name, hasShiny, query));
+
+    [Theory]
+    [InlineData(true, "mystere", true)]
+    [InlineData(true, "mystère", true)]
+    [InlineData(false, "mystere", false)]
+    [InlineData(false, "mystère", false)]
+    public void Matches_Mystery(bool hasMystery, string query, bool expected) =>
+        Assert.Equal(expected, DexSearch.Matches(25, "Pikachu", false, hasMystery, false, query));
+
+    [Theory]
+    [InlineData(true, "doublon", true)]
+    [InlineData(true, "doublons", true)]
+    [InlineData(false, "doublon", false)]
+    [InlineData(false, "doublons", false)]
+    public void Matches_Duplicates(bool hasDuplicate, string query, bool expected) =>
+        Assert.Equal(expected, DexSearch.Matches(25, "Pikachu", false, false, hasDuplicate, query));
 }

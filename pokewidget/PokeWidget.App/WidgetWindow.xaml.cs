@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Automation;
@@ -126,7 +127,7 @@ public partial class WidgetWindow : Window
         _collapseItem.Click += (_, _) => SetCollapsed(!Settings.Collapsed);
         menu.Items.Add(_collapseItem);
         menu.Items.Add(new Separator());
-        foreach (var (label, open) in new (string, Action)[] { ("Pokédex", (Action)OpenDex), ("Réglages…", (Action)OpenSettings), ("Comment jouer ?", (Action)OpenHelp) })
+        foreach (var (label, open) in new (string, Action)[] { ("Pokédex", (Action)OpenDex), ("Boutique", (Action)OpenShop), ("Réglages…", (Action)OpenSettings), ("Comment jouer ?", (Action)OpenHelp) })
         {
             var item = new MenuItem { Header = label };
             item.Click += (_, _) => open();
@@ -173,6 +174,7 @@ public partial class WidgetWindow : Window
     /* --------------------------- Fenêtres secondaires --------------------------- */
 
     private DexWindow? _dexWin;
+    private ShopWindow? _shopWin;
     private HelpWindow? _helpWin;
     private SettingsWindow? _settingsWin;
 
@@ -193,6 +195,7 @@ public partial class WidgetWindow : Window
     }
 
     public void OpenDex() => ShowSingle(ref _dexWin, () => new DexWindow(State, _sprites), _ => _dexWin = null);
+    public void OpenShop() => ShowSingle(ref _shopWin, () => new ShopWindow(_repo, _sprites, _species, () => { Render(); _shopWin?.RefreshUi(); }), _ => _shopWin = null);
     public void OpenHelp() => ShowSingle(ref _helpWin, () => new HelpWindow(), _ => _helpWin = null);
     public void OpenSettings() => ShowSingle(ref _settingsWin, () => new SettingsWindow(_repo, _updates, OnSettingsChanged), _ => _settingsWin = null);
 
@@ -216,6 +219,7 @@ public partial class WidgetWindow : Window
 
     private void Help_Click(object sender, RoutedEventArgs e) => OpenHelp();
     private void Dex_Click(object sender, RoutedEventArgs e) => OpenDex();
+    private void Shop_Click(object sender, RoutedEventArgs e) => OpenShop();
     private void Settings_Click(object sender, RoutedEventArgs e) => OpenSettings();
 
     private void RefreshUpdateUi()
@@ -311,7 +315,7 @@ public partial class WidgetWindow : Window
         if (_loadingSlot == slot) return;
         _loadingSlot = slot;
         string seed = Settings.Seed;
-        var spawn = SpawnService.For(seed, slot);
+        var spawn = SpawnService.For(seed, slot, State.Shop.ShinyBoostUpgrades > 0);
         try
         {
             var info = await _species.GetAsync(spawn.Id);
@@ -337,10 +341,11 @@ public partial class WidgetWindow : Window
     private void Render()
     {
         bool caught = IsCaughtShown();
+        double effRate = _current is null ? 45 : State.GetEffectiveRate(_current.Info.Rate, _current.Spawn.Slot);
         foreach (var (type, ui) in _balls)
         {
             ui.Count.Text = State.Balls[type].ToString();
-            double? pct = _current is null ? null : CatchMath.Probability(_current.Info.Rate, BallInfo.Bonus(type)) * 100;
+            double? pct = _current is null ? null : CatchMath.Probability(effRate, BallInfo.Bonus(type)) * 100;
             ui.Pct.Text = pct is null ? "" : pct < 1 ? "<1 %" : $"{(int)Math.Round(pct.Value, MidpointRounding.AwayFromZero)} %";
             ui.Btn.IsEnabled = !_busy && _current is not null && !caught && State.Balls[type] > 0;
         }
@@ -357,7 +362,8 @@ public partial class WidgetWindow : Window
             bool inDex = State.Dex.ContainsKey(_current.Spawn.Id);
             NameBall.Visibility = inDex ? Visibility.Visible : Visibility.Collapsed;
             NameText.Text = (_current.Spawn.Shiny ? "✨ " : "") + _current.Info.Name;
-            MetaText.Text = $"Taux de capture : {_current.Info.Rate}";
+            string bonusRate = effRate > _current.Info.Rate ? $" (+{(State.MissedCount * 0.02).ToString("0.00", CultureInfo.InvariantCulture)})" : "";
+            MetaText.Text = $"Taux de capture : {_current.Info.Rate}{bonusRate}";
             Sprite.Opacity = caught ? 0.22 : 1;
             StageBg.Background = (Brush)FindResource(_current.Spawn.Shiny ? "StageShiny" : "StageNormal");
         }

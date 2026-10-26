@@ -3,6 +3,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
+        <RadialGradientBrush x:Key="StageNormal" Center="0.5,0.85" GradientOrigin="0.5,0.85" RadiusX="0.65" RadiusY="0.9">
+            <GradientStop Color="#24FFFFFF" Offset="0"/><GradientStop Color="#00FFFFFF" Offset="1"/>
+        </RadialGradientBrush>
+        <RadialGradientBrush x:Key="StageShiny" Center="0.5,0.85" GradientOrigin="0.5,0.85" RadiusX="0.65" RadiusY="0.9">
+            <GradientStop Color="#52FFCB05" Offset="0"/><GradientStop Color="#00FFCB05" Offset="1"/>
+        </RadialGradientBrush>
+
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="#F2F4F5"/>
             <Setter Property="Cursor" Value="Hand"/>

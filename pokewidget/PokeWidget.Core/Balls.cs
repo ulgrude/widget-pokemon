@@ -13,7 +13,7 @@ public static class BallInfo
 
 public static class CatchMath
 {
-    public static double Probability(int rate, double bonus)
+    public static double Probability(double rate, double bonus)
     {
         double a = Math.Min(255, rate * bonus / 3);
         if (a >= 255) return 1;
