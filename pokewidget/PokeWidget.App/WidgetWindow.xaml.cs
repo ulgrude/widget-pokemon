@@ -315,7 +315,7 @@ public partial class WidgetWindow : Window
         if (_loadingSlot == slot) return;
         _loadingSlot = slot;
         string seed = Settings.Seed;
-        var spawn = SpawnService.For(seed, slot, State.Shop.ShinyBoostUpgrades > 0);
+        var spawn = SpawnService.For(seed, slot, State.PlayerId, State.Shop.ShinyBoostUpgrades > 0);
         try
         {
             var info = await _species.GetAsync(spawn.Id);

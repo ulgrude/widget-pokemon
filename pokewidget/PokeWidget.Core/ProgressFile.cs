@@ -49,6 +49,9 @@ public static class ProgressFile
             throw new InvalidDataException("fichier non reconnu");
 
         var s = GameState.Fresh(nowMs);
+        if (raw.TryGetProperty("playerId", out var playerId) && playerId.ValueKind == JsonValueKind.String)
+            s.PlayerId = playerId.GetString() ?? "";
+        s.EnsurePlayerId();
 
         if (raw.TryGetProperty("shop", out var sh) && sh.ValueKind == JsonValueKind.Object)
         {

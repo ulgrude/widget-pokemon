@@ -8,13 +8,13 @@ public class MiniIconTests
     private const string Seed = "newtab";
 
     // Premier slot chromatique et premier slot non chromatique pour cette seed
-    private static long FindSlot(bool shiny) { for (long s = 0; ; s++) if (SpawnService.For(Seed, s).Shiny == shiny) return s; }
+    private static long FindSlot(bool shiny, string playerId) { for (long s = 0; ; s++) if (SpawnService.For(Seed, s, playerId).Shiny == shiny) return s; }
 
     [Fact]
     public void New_pokemon_wobbles_until_seen()
     {
-        long slot = FindSlot(false);
         var s = GameState.Fresh(0);
+        long slot = FindSlot(false, s.PlayerId);
         var m = MiniIcon.Compute(s, Seed, slot);
         Assert.True(m.IsNew); Assert.False(m.Shine);
         Assert.Equal("Un nouveau Pokémon est apparu", m.Label);
@@ -29,8 +29,8 @@ public class MiniIconTests
     [Fact]
     public void Shiny_glows_even_after_being_seen()
     {
-        long slot = FindSlot(true);
         var s = GameState.Fresh(0);
+        long slot = FindSlot(true, s.PlayerId);
         s.MarkSeen(slot);
         var m = MiniIcon.Compute(s, Seed, slot);
         Assert.True(m.Shine); Assert.False(m.IsNew);
@@ -40,8 +40,8 @@ public class MiniIconTests
     [Fact]
     public void Caught_pokemon_shows_no_alert()
     {
-        long slot = FindSlot(true);
         var s = GameState.Fresh(0);
+        long slot = FindSlot(true, s.PlayerId);
         s.LastCaptureSlot = slot;
         var m = MiniIcon.Compute(s, Seed, slot);
         Assert.False(m.IsNew); Assert.False(m.Shine);

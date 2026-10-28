@@ -26,13 +26,31 @@ public class RngAndSpawnTests
     }
 
     [Fact]
-    public void Spawn_matches_the_userscript()
+    public void Spawn_species_match_the_userscript()
     {
         foreach (var v in Vectors.Spawns)
         {
-            var s = SpawnService.For(v.Seed, v.Slot);
-            Assert.True(v.Id == s.Id && v.Shiny == s.Shiny, $"spawn différent pour '{v.Seed}:{v.Slot}' (attendu {v.Id}/{v.Shiny}, obtenu {s.Id}/{s.Shiny})");
+            var s = SpawnService.For(v.Seed, v.Slot, "00000000-0000-4000-8000-000000000001");
+            Assert.Equal(v.Id, s.Id);
         }
+    }
+
+    [Fact]
+    public void Shiny_is_stable_per_player_but_varies_between_players()
+    {
+        const string firstPlayer = "00000000-0000-4000-8000-000000000001";
+        const string secondPlayer = "00000000-0000-4000-8000-000000000002";
+        bool foundDifferentShiny = false;
+        for (long slot = 0; slot < 10_000; slot++)
+        {
+            var first = SpawnService.For("shared seed", slot, firstPlayer);
+            var firstAgain = SpawnService.For("shared seed", slot, firstPlayer);
+            var second = SpawnService.For("shared seed", slot, secondPlayer);
+            Assert.Equal(first, firstAgain);
+            Assert.Equal(first.Id, second.Id);
+            if (first.Shiny != second.Shiny) foundDifferentShiny = true;
+        }
+        Assert.True(foundDifferentShiny);
     }
 
     [Fact]
@@ -160,6 +178,7 @@ public class ProgressFileTests
         Assert.Equal(1, r.State.Dex[1].Count);               // count minimum 1
         Assert.Equal("amis", r.Settings!.Seed);
         Assert.Equal(WidgetPosition.TopLeft, r.Settings.Position);
+        Assert.True(Guid.TryParseExact(r.State.PlayerId, "D", out _));
     }
 
     [Fact]
@@ -183,6 +202,7 @@ public class ProgressFileTests
         Assert.Equal(7, r.State.Balls.Super);
         Assert.Equal(99, r.State.LastCaptureSlot);
         Assert.Equal(s.LastTick, r.State.LastTick);
+        Assert.Equal(s.PlayerId, r.State.PlayerId);
         Assert.Equal("Évoli", r.State.Dex[133].Name);
         Assert.Equal(4, r.State.Dex[133].Count);
         Assert.Equal("ma seed", r.Settings!.Seed);
@@ -208,10 +228,27 @@ public class StorageTests : IDisposable
 
         var again = new GameRepository(paths, 2000);
         Assert.Equal(9, again.State.Balls.Hyper);
+        Assert.Equal(repo.State.PlayerId, again.State.PlayerId);
         Assert.Equal(1000, again.State.LastTick);
         Assert.Equal("x", again.Settings.Seed);
         Assert.Equal(190, again.Species[25].Rate);
         Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+    }
+
+    [Fact]
+    public void Repository_adds_and_persists_a_player_id_for_an_old_save()
+    {
+        Directory.CreateDirectory(_dir);
+        var paths = new AppPaths(_dir, Path.Combine(_dir, "sprites"));
+        const string oldSave = """{"balls":{"poke":7,"super":0,"hyper":0},"lastTick":1234,"dex":{},"shop":{}}""";
+        File.WriteAllBytes(paths.StatePath, SaveObfuscator.Protect(oldSave));
+
+        var repo = new GameRepository(paths, 2000);
+        Assert.True(Guid.TryParseExact(repo.State.PlayerId, "D", out _));
+        Assert.Equal(7, repo.State.Balls.Poke);
+
+        var reloaded = new GameRepository(paths, 3000);
+        Assert.Equal(repo.State.PlayerId, reloaded.State.PlayerId);
     }
 
     [Fact]

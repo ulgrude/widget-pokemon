@@ -9,7 +9,7 @@ public static class MiniIcon
     public static MiniIconState Compute(GameState state, string seed, long slot)
     {
         bool caught = state.IsCaught(slot);
-        bool shine = !caught && SpawnService.For(seed, slot).Shiny;
+        bool shine = !caught && SpawnService.For(seed, slot, state.PlayerId).Shiny;
         bool isNew = !caught && state.SeenSlot != slot;
         string label = shine ? "Un Pokémon chromatique est là !"
             : isNew ? "Un nouveau Pokémon est apparu"

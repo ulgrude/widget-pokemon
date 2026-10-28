@@ -95,12 +95,13 @@ public sealed class GameRepository
         State = migrateLegacy
             ? JsonFile.Load(paths.LegacyStatePath, () => GameState.Fresh(nowMs))
             : JsonFile.LoadProtected(paths.StatePath, () => GameState.Fresh(nowMs));
+        bool playerIdChanged = State.EnsurePlayerId();
         Settings = JsonFile.Load(paths.SettingsPath, () => new SettingsModel());
         Species = JsonFile.Load(paths.SpeciesPath, () => new Dictionary<int, SpeciesInfo>());
         Settings.Seed = SettingsModel.NormalizeSeed(Settings.Seed);
 
         // Première fois, migration, ou fichier mis de côté : on (ré)écrit la sauvegarde obfusquée.
-        if (!File.Exists(paths.StatePath)) SaveState();
+        if (!File.Exists(paths.StatePath) || playerIdChanged) SaveState();
         if (migrateLegacy)
         {
             try { File.Delete(paths.LegacyStatePath); }

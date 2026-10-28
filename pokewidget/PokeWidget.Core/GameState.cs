@@ -42,6 +42,7 @@ public enum ThrowOutcome { Unavailable, Missed, Caught }
 public sealed class GameState
 {
     public BallStock Balls { get; set; } = new() { Poke = GameConfig.StartBalls };
+    public string PlayerId { get; set; } = "";
     public long LastTick { get; set; }
     public long? LastCaptureSlot { get; set; }
     /// <summary>Dernier slot "vu" à l'écran : sert à l'animation de l'icône réduite.</summary>
@@ -54,7 +55,22 @@ public sealed class GameState
 
     public int MaxBallCap => GameConfig.BallCap + (Shop.BallCapUpgrades * 10);
 
-    public static GameState Fresh(long nowMs) => new() { LastTick = nowMs };
+    public static GameState Fresh(long nowMs) => new() { LastTick = nowMs, PlayerId = Guid.NewGuid().ToString("D") };
+
+    /// <summary>Initialise ou normalise l'identifiant de joueur pour les anciennes sauvegardes.</summary>
+    public bool EnsurePlayerId()
+    {
+        if (Guid.TryParseExact(PlayerId, "D", out var id))
+        {
+            string normalized = id.ToString("D");
+            if (PlayerId == normalized) return false;
+            PlayerId = normalized;
+            return true;
+        }
+
+        PlayerId = Guid.NewGuid().ToString("D");
+        return true;
+    }
 
     public bool IsCaught(long slot) => LastCaptureSlot == slot;
 

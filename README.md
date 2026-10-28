@@ -20,8 +20,8 @@ Il existe en **deux versions**, avec quelques différences selon la plateforme :
 ## Fonctionnalités
 
 - **Un nouveau Pokémon toutes les 30 minutes**, parmi les 1025 espèces.
-- **Seed partagée** : toutes les personnes qui utilisent la même seed voient le même Pokémon au même moment, y compris entre la version bureau et la version navigateur.
-- **Chromatiques** : chaque apparition a 1 chance sur 64 d'être shiny ✨.
+- **Seed partagée** : toutes les personnes qui utilisent la même seed voient la même espèce au même moment, y compris entre la version bureau et la version navigateur.
+- **Chromatiques personnalisés** : chaque apparition a 1 chance sur 64 d'être shiny ✨, déterminée par l'identifiant unique de la progression. Les apparitions chromatiques diffèrent donc d'un joueur à l'autre.
 - **Trois types de balls**, avec un pourcentage de réussite affiché en direct :
   | Ball | Bonus de capture |
   |---|---|
@@ -99,8 +99,8 @@ Un clic sur ce lien propose d'**installer la mise à jour et de redémarrer** le
 
 ## Sauvegarde
 
-- Ta progression est enregistrée dans un **fichier chiffré** (`state.dat`) : il ne peut pas être modifié à la main. Si le fichier est altéré, il est mis de côté et une nouvelle partie démarre.
-- **Exporter** crée un fichier `.pokesave` (balls, Pokédex, seed, position). **Importer** le restaure.
+- Ta progression et son identifiant de joueur sont enregistrés dans un **fichier chiffré** (`state.dat`) : il ne peut pas être modifié à la main. Si le fichier est altéré, il est mis de côté et une nouvelle partie démarre.
+- **Exporter** crée un fichier `.pokesave` (balls, Pokédex, identifiant de joueur, seed, position). **Importer** le restaure.
 
 ## Données et vie privée
 

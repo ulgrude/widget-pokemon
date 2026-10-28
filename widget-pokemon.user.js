@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Widget Pokémon
 // @namespace    https://github.com/ulgrude
-// @version      1.5.0
+// @version      1.5.1
 // @description  Un Pokémon seedé en commun, capturable aux Poké/Super/Hyper Balls, sur les pages de ton choix.
 // @author       Ulgrude
 // @updateURL    https://raw.githubusercontent.com/ulgrude/widget-pokemon/main/widget-pokemon.user.js
@@ -65,6 +65,17 @@
     'https://discord.com/channels/*',
   ];
 
+  const createPlayerId = () => {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  };
+  const isPlayerId = (id) => typeof id === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
   /* ========================================================================
      2. Stockage (GM_*) — partagé entre tous les sites où le script tourne,
         et synchronisé entre onglets ouverts en même temps
@@ -78,6 +89,7 @@
   const SPR_PREFIX = 'poke_spr:';
 
   const freshState = () => ({
+    playerId: createPlayerId(),
     balls: { poke: CFG.START_BALLS, super: 0, hyper: 0 },
     lastTick: Date.now(),
     lastCaptureSlot: null,
@@ -141,9 +153,12 @@
   function saveConfig(c) { GM_setValue(K_CONFIG, c); }
 
   let config = loadConfig();
-  let state = GM_getValue(K_STATE, null) || freshState();
+  const storedState = GM_getValue(K_STATE, null);
+  let state = storedState || freshState();
+  const playerIdNeedsSave = !isPlayerId(state.playerId);
+  if (playerIdNeedsSave) state.playerId = createPlayerId();
   const saveState = () => GM_setValue(K_STATE, state);
-  if (!GM_getValue(K_STATE, null)) saveState();
+  if (!storedState || playerIdNeedsSave) saveState();
 
   let ui = Object.assign({ collapsed: false }, GM_getValue(K_UI, null) || {});
   const saveUi = () => GM_setValue(K_UI, ui);
@@ -153,7 +168,11 @@
 
   // Resynchronise si un autre onglet modifie l'état, la config ou l'UI en même temps
   GM_addValueChangeListener(K_STATE, (name, oldV, newV, remote) => {
-    if (remote) { state = newV || freshState(); render(); }
+    if (remote) {
+      state = newV || freshState();
+      if (!isPlayerId(state.playerId)) { state.playerId = createPlayerId(); saveState(); }
+      render();
+    }
   });
   GM_addValueChangeListener(K_CONFIG, (name, oldV, newV, remote) => {
     if (!remote) return;
@@ -213,9 +232,11 @@
   }
   const currentSlot = () => Math.floor(Date.now() / CFG.SLOT_MS);
   function spawnFor(slot) {
-    const rng = mulberry32(hashStr(config.seed + ':' + slot));
-    const id = 1 + Math.floor(rng() * CFG.MAX_POKEMON_ID);
-    const shiny = rng() < getShinyRate();
+    const slotKey = config.seed + ':' + slot;
+    const pokemonRng = mulberry32(hashStr(slotKey));
+    const id = 1 + Math.floor(pokemonRng() * CFG.MAX_POKEMON_ID);
+    const shinyRng = mulberry32(hashStr(slotKey + ':' + state.playerId));
+    const shiny = shinyRng() < getShinyRate();
     return { slot, id, shiny };
   }
 
@@ -1422,6 +1443,7 @@
       return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
     };
     const s = freshState();
+    if (isPlayerId(raw.playerId)) s.playerId = raw.playerId.toLowerCase();
     if (raw.shop && typeof raw.shop === 'object') {
       s.shop = {
         ballCapUpgrades: int(raw.shop.ballCapUpgrades, 0, 5, 0),
